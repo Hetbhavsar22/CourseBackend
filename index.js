@@ -17,6 +17,7 @@ const dbString = process.env.DB_STRING;
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 // MongoDB connection

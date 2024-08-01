@@ -7,68 +7,124 @@ const fs = require("fs");
 const util = require("util");
 
 // Controller function to handle video and thumbnail uploads
+// const uploadVideoAndThumbnail = (req, res) => {
+//   console.log('req. body: ',req.body,'-----');
+//   upload(req, res, (err) => {
+//       if (err) {
+//           console.error('Error uploading file:', err.message);
+//           return res.status(400).json({ error: err.message });
+//       }
+
+//       console.log('Uploaded files:', req.files);
+
+//       // Proceed with form data
+//       const { title, sdescription, ldescription, tags, dvideo, typev, courseId, createdBy } = req.body;
+//       console.log('createdby ',createdBy)
+//       // Validate required fields
+//       if (!createdBy || !courseId || !typev) {
+//           return res.status(400).json({ error: 'Required fields are missing' });
+//       }
+
+//       // Determine the demo video status
+//       const demoStatus = dvideo === 'true' ? "Use as a Demo Video" : "No demo video";
+
+//       // Create a new video/document object
+//       let newMedia = {
+//           userId: createdBy,
+//           courseId,
+//           title,
+//           sdescription,
+//           ldescription,
+//           tags,
+//           typev,
+//           active: true,
+//       };
+
+//       // Check if it's a document upload
+//       if (typev === 'document') {
+//           newMedia.pdf = req.files['pdf'] ? req.files['pdf'][0].filename : undefined;
+//           newMedia.ppt = req.files['ppt'] ? req.files['ppt'][0].filename : undefined;
+//           newMedia.doc = req.files['doc'] ? req.files['doc'][0].filename : undefined;
+//       }
+
+//       // Check if it's a video upload
+//       if (typev === 'video') {
+//           newMedia.dvideo = demoStatus;
+//           newMedia.thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].filename : undefined;
+//           newMedia.videofile = req.files['videofile'] ? req.files['videofile'][0].filename : undefined;
+//       }
+
+//       // Log the newMedia object for debugging
+//       console.log('New Media Object:', newMedia);
+
+//       // Create a new video/document instance
+//       const newVideo = new Video(newMedia);
+
+//       // Save to database
+//       newVideo.save()
+//           .then((savedVideo) => res.json({ message: 'Media uploaded successfully', video: savedVideo }))
+//           .catch((err) => {
+//               console.error('Database save error:', err.message);
+//               res.status(500).json({ error: err.message });
+//           });
+//   });
+// };
+
 const uploadVideoAndThumbnail = (req, res) => {
-  console.log(req.body);
-  upload(req, res, (err) => {
-      if (err) {
-          console.error('Error uploading file:', err.message);
-          return res.status(400).json({ error: err.message });
-      }
+  console.log('req.body:', req.body);
+  console.log('req.files:', req.files);
 
-      console.log('Uploaded files:', req.files);
+  upload(req, res, async(err) => {
+    if (err) {
+      console.error('Error uploading file:', err.message);
+      return res.status(400).json({ error: err.message });
+    }
 
-      // Proceed with form data
-      const { title, sdescription, ldescription, tags, dvideo, typev, courseId, createdBy } = req.body;
+    const { title, sdescription, ldescription, tags, dvideo, typev, courseId, createdBy } = req.body;
+    console.log('createdby:', createdBy);
 
-      // Validate required fields
-      if (!createdBy || !courseId || !typev) {
-          return res.status(400).json({ error: 'Required fields are missing' });
-      }
+    if (!createdBy || !courseId || !typev) {
+      return res.status(400).json({ error: 'Required fields are missing' });
+    }
 
-      // Determine the demo video status
-      const demoStatus = dvideo === 'true' ? "Use as a Demo Video" : "No demo video";
+    const demoStatus = dvideo === 'true' ? "Use as a Demo Video" : "No demo video";
 
-      // Create a new video/document object
-      let newMedia = {
-          userId: createdBy,
-          courseId,
-          title,
-          sdescription,
-          ldescription,
-          tags,
-          typev,
-          active: true,
-      };
+    const newMedia = {
+      userId: createdBy,
+      courseId,
+      title,
+      sdescription,
+      ldescription,
+      tags,
+      typev,
+      active: true,
+    };
 
-      // Check if it's a document upload
-      if (typev === 'document') {
-          newMedia.pdf = req.files['pdf'] ? req.files['pdf'][0].filename : undefined;
-          newMedia.ppt = req.files['ppt'] ? req.files['ppt'][0].filename : undefined;
-          newMedia.doc = req.files['doc'] ? req.files['doc'][0].filename : undefined;
-      }
+    if (typev === 'document') {
+      newMedia.pdf = req.files['pdf'] ? req.files['pdf'][0].filename : undefined;
+      newMedia.ppt = req.files['ppt'] ? req.files['ppt'][0].filename : undefined;
+      newMedia.doc = req.files['doc'] ? req.files['doc'][0].filename : undefined;
+    }
 
-      // Check if it's a video upload
-      if (typev === 'video') {
-          newMedia.dvideo = demoStatus;
-          newMedia.thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].filename : undefined;
-          newMedia.videofile = req.files['videofile'] ? req.files['videofile'][0].filename : undefined;
-      }
+    if (typev === 'video') {
+      newMedia.dvideo = demoStatus;
+      newMedia.thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].filename : undefined;
+      newMedia.videofile = req.files['videofile'] ? req.files['videofile'][0].filename : undefined;
+    }
 
-      // Log the newMedia object for debugging
-      console.log('New Media Object:', newMedia);
+    console.log('New Media Object:', newMedia);
 
-      // Create a new video/document instance
-      const newVideo = new Video(newMedia);
+    const newVideo = new Video(newMedia);
 
-      // Save to database
-      newVideo.save()
-          .then((savedVideo) => res.json({ message: 'Media uploaded successfully', video: savedVideo }))
-          .catch((err) => {
-              console.error('Database save error:', err.message);
-              res.status(500).json({ error: err.message });
-          });
+    newVideo.save()
+      .then((savedVideo) => res.json({ message: 'Media uploaded successfully', video: savedVideo }))
+      .catch((err) => {
+        console.error('Database save error:', err.message);
+        res.status(500).json({ error: err.message });
+      });
   });
 };
+
 
 
 // Controller to get all videos

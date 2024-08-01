@@ -60,7 +60,7 @@ const videoSchema = new Schema(
       // },
     },
     tags: {
-      type: Array,
+      type: [String],
       required: true,
     },
     typev: {

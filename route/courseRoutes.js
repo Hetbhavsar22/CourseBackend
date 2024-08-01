@@ -1,8 +1,10 @@
 const express = require('express');
+const multer = require('multer');
+const auth = require('../middleware/auth');
 const {
   createCourse,
   getAllCourses,
-  getCourseById,
+  // getCourseById,
   updateCourse,
   deleteCourse,
   courseValidationRules,
@@ -11,10 +13,12 @@ const {
 const router = express.Router();
 const Course = require('../Model/courseModel');
 
+const upload = multer();
+
 router.post('/:userId/coursedetails', courseValidationRules, validate, createCourse);
-router.get('/courseList', getAllCourses);
-router.get('/coursedetails/:id', getCourseById);
-router.put('/coursedetails/:courseId', updateCourse);
+router.get('/courseList',auth, getAllCourses);
+// router.get('/coursedetails/:id', getCourseById);
+router.post('/coursedetails/:courseId',upload.none(), updateCourse);
 router.delete('/coursedetails/:id', deleteCourse);
 
 

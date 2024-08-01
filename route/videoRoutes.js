@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer();
 const Video = require('../Model/videoModel')
 const { uploadVideoAndThumbnail, getAllVideos, getVideo, getThumbnail, updateVideoDetails, deleteVideo, updateVideoOrder } = require('../Controller/videoController');
 
