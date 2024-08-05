@@ -3,13 +3,15 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer();
 const Video = require('../Model/videoModel')
-const { uploadVideoAndThumbnail, getAllVideos, getVideo, getThumbnail, updateVideoDetails, deleteVideo, updateVideoOrder } = require('../Controller/videoController');
+const { uploadVideoAndThumbnail, getAllVideos, 
+  // getVideo, getThumbnail, 
+  updateVideoDetails, deleteVideo, updateVideoOrder } = require('../Controller/videoController');
 
 // Route for handling video and thumbnail uploads
 router.post('/:courseId/upload', uploadVideoAndThumbnail);
 router.get('/videodetails', getAllVideos);
-router.get('/:filename', getVideo);
-router.get('/image/:thumbnail', getThumbnail);
+// router.get('/:filename', getVideo);
+// router.get('/image/:thumbnail', getThumbnail);
 router.post('/editvideodetails/:id', updateVideoDetails);
 router.delete('/videodetails/:id', deleteVideo);
 router.post('/updateVideoOrder', updateVideoOrder);

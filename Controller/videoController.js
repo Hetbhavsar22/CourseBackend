@@ -71,23 +71,33 @@ const util = require("util");
 // };
 
 const uploadVideoAndThumbnail = (req, res) => {
-  console.log('req.body:', req.body);
-  console.log('req.files:', req.files);
+  console.log("req.body:", req.body);
+  console.log("req.files:", req.files);
 
-  upload(req, res, async(err) => {
+  upload(req, res, async (err) => {
     if (err) {
-      console.error('Error uploading file:', err.message);
+      console.error("Error uploading file:", err.message);
       return res.status(400).json({ error: err.message });
     }
 
-    const { title, sdescription, ldescription, tags, dvideo, typev, courseId, createdBy } = req.body;
-    console.log('createdby:', createdBy);
+    const {
+      title,
+      sdescription,
+      ldescription,
+      tags,
+      dvideo,
+      typev,
+      courseId,
+      createdBy,
+    } = req.body;
+    console.log("createdby:", createdBy);
 
     if (!createdBy || !courseId || !typev) {
-      return res.status(400).json({ error: 'Required fields are missing' });
+      return res.status(400).json({ error: "Required fields are missing" });
     }
 
-    const demoStatus = dvideo === 'true' ? "Use as a Demo Video" : "No demo video";
+    const demoStatus =
+      dvideo === "true" ? "Use as a Demo Video" : "No demo video";
 
     const newMedia = {
       userId: createdBy,
@@ -100,32 +110,43 @@ const uploadVideoAndThumbnail = (req, res) => {
       active: true,
     };
 
-    if (typev === 'document') {
-      newMedia.pdf = req.files['pdf'] ? req.files['pdf'][0].filename : undefined;
-      newMedia.ppt = req.files['ppt'] ? req.files['ppt'][0].filename : undefined;
-      newMedia.doc = req.files['doc'] ? req.files['doc'][0].filename : undefined;
+    if (typev === "document") {
+      newMedia.pdf = req.files["pdf"]
+        ? req.files["pdf"][0].filename
+        : undefined;
+      newMedia.ppt = req.files["ppt"]
+        ? req.files["ppt"][0].filename
+        : undefined;
+      newMedia.doc = req.files["doc"]
+        ? req.files["doc"][0].filename
+        : undefined;
     }
 
-    if (typev === 'video') {
+    if (typev === "video") {
       newMedia.dvideo = demoStatus;
-      newMedia.thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0].filename : undefined;
-      newMedia.videofile = req.files['videofile'] ? req.files['videofile'][0].filename : undefined;
+      newMedia.thumbnail = req.files["thumbnail"]
+        ? req.files["thumbnail"][0].filename
+        : undefined;
+      newMedia.videofile = req.files["videofile"]
+        ? req.files["videofile"][0].filename
+        : undefined;
     }
 
-    console.log('New Media Object:', newMedia);
+    console.log("New Media Object:", newMedia);
 
     const newVideo = new Video(newMedia);
 
-    newVideo.save()
-      .then((savedVideo) => res.json({ message: 'Media uploaded successfully', video: savedVideo }))
+    newVideo
+      .save()
+      .then((savedVideo) =>
+        res.json({ message: "Media uploaded successfully", video: savedVideo })
+      )
       .catch((err) => {
-        console.error('Database save error:', err.message);
+        console.error("Database save error:", err.message);
         res.status(500).json({ error: err.message });
       });
   });
 };
-
-
 
 // Controller to get all videos
 const getAllVideos = async (req, res) => {
@@ -155,31 +176,31 @@ const getAllVideos = async (req, res) => {
   }
 };
 
-const getVideo = (req, res) => {
-  const { filename } = req.params;
-  const videoPath = path.join(__dirname, '../public/videos', filename);
+// const getVideo = (req, res) => {
+//   const { filename } = req.params;
+//   const videoPath = path.join(__dirname, '../public/videos', filename);
 
-  res.sendFile(videoPath, (err) => {
-    if (err) {
-      console.error('Error serving video file:', err.message);
-      res.status(404).json({ error: 'Video file not found' });
-    }
-  });
-};
+//   res.sendFile(videoPath, (err) => {
+//     if (err) {
+//       console.error('Error serving video file:', err.message);
+//       res.status(404).json({ error: 'Video file not found' });
+//     }
+//   });
+// };
 
-// Route for serving thumbnail images by filename
-const getThumbnail = (req, res) => {
-  const { filename } = req.params;
-  console.log(filename)
-  const thumbnailPath = path.join(__dirname, '../public/thumbnails', filename);
+// // Route for serving thumbnail images by filename
+// const getThumbnail = (req, res) => {
+//   const { filename } = req.params;
+//   console.log(filename)
+//   const thumbnailPath = path.join(__dirname, '../public/thumbnails', filename);
 
-  res.sendFile(thumbnailPath, (err) => {
-    if (err) {
-      console.error('Error serving thumbnail image:', err.message);
-      res.status(404).json({ error: 'Thumbnail image not found' });
-    }
-  });
-};
+//   res.sendFile(thumbnailPath, (err) => {
+//     if (err) {
+//       console.error('Error serving thumbnail image:', err.message);
+//       res.status(404).json({ error: 'Thumbnail image not found' });
+//     }
+//   });
+// };
 
 const updateVideoDetails = (req, res) => {
   upload(req, res, async (err) => {
@@ -232,25 +253,32 @@ const updateVideoDetails = (req, res) => {
       video.typev = typev || video.typev;
       video.courseId = courseId || video.courseId;
       video.userId = createdBy || video.userId;
+
       if (typev === "document") {
-        video.pdf = req.files["pdf"]
-          ? req.files["pdf"][0].filename
-          : pdf || video.pdf;
-        video.ppt = req.files["ppt"]
-          ? req.files["ppt"][0].filename
-          : ppt || video.ppt;
-        video.doc = req.files["doc"]
-          ? req.files["doc"][0].filename
-          : doc || video.doc;
+        video.dvideo = null;
+        video.thumbnail = null;
+        video.videofile = null;
+        video.pdf = req.files["pdf"] ? req.files["pdf"][0].filename : undefined;
+        video.ppt = req.files["ppt"] ? req.files["ppt"][0].filename : undefined;
+        video.doc = req.files["doc"] ? req.files["doc"][0].filename : undefined;
       }
       if (typev === "video") {
+        video.pdf = null;
+        video.ppt = null;
+        video.doc = null;
+        video.dvideo = demoStatus;
         video.thumbnail = req.files["thumbnail"]
           ? req.files["thumbnail"][0].filename
-          : video.thumbnail;
+          : undefined;
         video.videofile = req.files["videofile"]
           ? req.files["videofile"][0].filename
-          : video.videofile;
+          : undefined;
       }
+      console.log(video.videofile);
+      console.log(video.thumbnail);
+      console.log(video.pdf);
+      console.log(video.ppt);
+      console.log(video.doc);
       // Save the updated video document
       const updatedVideo = await video.save();
       res.json({ message: "Video updated successfully", video: updatedVideo });
@@ -326,8 +354,8 @@ const updateVideoOrder = async (req, res) => {
 module.exports = {
   uploadVideoAndThumbnail,
   getAllVideos,
-  getVideo,
-  getThumbnail,
+  // getVideo,
+  // getThumbnail,
   updateVideoDetails,
   deleteVideo,
   updateVideoOrder,
