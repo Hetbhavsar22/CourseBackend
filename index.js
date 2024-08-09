@@ -1,12 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const adminModel = require("./Model/adminModel");
 const userModel = require("./Model/userModel");
 const path = require("path");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const SECRET_KEY = process.env.SECRET_KEY;
 
+const adminRoutes = require("./route/adminRoutes");
 const userRoutes = require("./route/userRoutes");
 const courseRoutes = require("./route/courseRoutes");
 const videoRoutes = require("./route/videoRoutes");
@@ -36,15 +38,19 @@ mongoose
   })
   .catch((error) => {
     console.error("MongoDB connection error:", error);
-  });
+  }); 
 
 // Use routes
-app.use("/users", userRoutes);
+app.use("/admin", adminRoutes);
+app.use("/user", userRoutes);
 app.use("/course", courseRoutes);
 app.use("/video", videoRoutes);
 
+
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
 // Additional route example
-app.get("/getUserById", async (req, res) => {
+app.get("/getAdminById", async (req, res) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -55,22 +61,22 @@ app.get("/getUserById", async (req, res) => {
 
   try {
     const decodedToken = jwt.verify(token, SECRET_KEY);
-    const userId = decodedToken.id;
+    const adminId = decodedToken.id;
 
-    const user = await userModel.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    const admin = await adminModel.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ error: "Admin not found" });
     }
-    const profileImagePath = user.profileImage
-      ? path.join("/public/profile_images", user.profileImage)
+    const profileImagePath = admin.profileImage
+      ? path.join("/public/profile_images", admin.profileImage)
       : null;
 
     res.json({
-      ...user.toObject(),
+      ...admin.toObject(),
       profileImage: profileImagePath,
     });
   } catch (err) {
-    console.error("Error finding user:", err);
+    console.error("Error finding admin:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

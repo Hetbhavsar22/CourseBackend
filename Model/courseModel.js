@@ -1,45 +1,39 @@
-const { string } = require("joi");
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const courseSchema = new Schema(
   {
-    userId: {
+    adminId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Admin",
       required: true,
     },
     cname: {
       type: String,
-      required: true,
-      unique: true,
+    },
+    totalVideo: {
+      type: Number,
+    },
+    courseImage: {
+      type: String,
     },
     hours: {
       type: Number,
-      required: true,
-      unique: true,
     },
     description: {
       type: String,
-      required: true,
-      unique: true,
     },
     language: {
       type: String,
-      required: true,
-      unique: true,
     },
     price: {
       type: Number,
-      required: true,
     },
     dprice: {
       type: Number,
-      required: true,
     },
     courseType: {
       type: String,
-      required: true,
       // enum: ["80% complete", "all open", "time to time"],
     },
     percentage: {
@@ -60,13 +54,12 @@ const courseSchema = new Schema(
       default: Date.now,
     },
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      type: String,
+      ref: "Admin",
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Admin",
     },
     sequence: {
       type: Number,

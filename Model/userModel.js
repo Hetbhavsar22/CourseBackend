@@ -3,11 +3,6 @@ const Schema = mongoose.Schema;
 
 const UserSchema = new Schema(
   {
-    profileImage: {
-      type: String,
-      default: "/images/default-avatar.jpg",
-    },
-
     name: {
       type: String,
       require: true,
@@ -18,20 +13,30 @@ const UserSchema = new Schema(
       type: String,
     },
 
-    password: {
-      type: String,
-    },
+    phoneNumber: {
+        type: Number,
+      },
 
-    currentPassword: {
-      type: String,
-    },
+      otp: {
+        type: String,
+      },
 
-    newPassword: {
-      type: String,
-    },
+      enrolledCourse: {
+        type: String,
+      },
+
+      active: {
+        type: Boolean,
+        default: true,
+      },
+      
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
   },
   { timestamps: true }
 );
 
-const userModel = mongoose.model("users", UserSchema);
+const userModel = mongoose.model("user", UserSchema);
 module.exports = userModel;

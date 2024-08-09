@@ -7,19 +7,23 @@ const {
   // getCourseById,
   updateCourse,
   deleteCourse,
-  courseValidationRules,
-  validate,
+  courseCheckout,
+  // courseValidationRules,
+  // validate,
 } = require('../Controller/courseController');
 const router = express.Router();
 const Course = require('../Model/courseModel');
 
 const upload = multer();
 
-router.post('/:userId/coursedetails', courseValidationRules, validate, createCourse);
-router.get('/courseList',auth, getAllCourses);
+router.post('/:adminId/coursedetails', 
+  // courseValidationRules, validate, 
+  createCourse);
+router.get('/courseList', getAllCourses);
 // router.get('/coursedetails/:id', getCourseById);
 router.post('/coursedetails/:courseId',upload.none(), updateCourse);
 router.delete('/coursedetails/:id', deleteCourse);
+router.post('/courseCheckout', courseCheckout);
 
 
 // Route to toggle course activation status

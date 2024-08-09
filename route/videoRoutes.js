@@ -3,12 +3,12 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer();
 const Video = require('../Model/videoModel')
-const { uploadVideoAndThumbnail, getAllVideos, 
+const { createVideo, getAllVideos, 
   // getVideo, getThumbnail, 
   updateVideoDetails, deleteVideo, updateVideoOrder } = require('../Controller/videoController');
 
 // Route for handling video and thumbnail uploads
-router.post('/:courseId/upload', uploadVideoAndThumbnail);
+router.post('/:courseId/upload', createVideo);
 router.get('/videodetails', getAllVideos);
 // router.get('/:filename', getVideo);
 // router.get('/image/:thumbnail', getThumbnail);
@@ -28,7 +28,7 @@ router.patch('/:id/toggle', async (req, res) => {
       await video.save();
       res.status(200).json(video);
     } catch (error) {
-      console.error("Error toggling course:", error);
+      console.error("Error toggling video:", error);
       res.status(500).json({ message: 'Server error' });
     }
   });

@@ -3,9 +3,9 @@ const Schema = mongoose.Schema;
 
 const videoSchema = new Schema(
   {
-    userId: {
+    adminId: {
       type: Schema.Types.ObjectId,
-      ref: "User",
+      ref: "admin",
       required: true,
     },
     courseId: {
@@ -31,6 +31,7 @@ const videoSchema = new Schema(
     },
     thumbnail: {
       type: String,
+      default: null,
       // required: function() {
       //   return this.typev === 'video';
       // },
@@ -82,17 +83,17 @@ const videoSchema = new Schema(
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "admin",
       // required: true,
     },
     updatedBy: {
       type: Schema.Types.ObjectId,
-      ref: "User",
+      ref: "admin",
     },
   },
   { timestamps: true }
 );
 
-const Video = mongoose.model("Video", videoSchema);
+const Video = mongoose.model("Videos", videoSchema);
 
 module.exports = Video;

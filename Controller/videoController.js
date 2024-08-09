@@ -1,7 +1,7 @@
 const upload = require("../middleware/upload");
 const Video = require("../Model/videoModel");
 const Course = require("../Model/courseModel");
-const User = require("../Model/userModel");
+const adminModel = require("../Model/adminModel");
 const path = require("path");
 const fs = require("fs");
 const util = require("util");
@@ -30,7 +30,7 @@ const util = require("util");
 
 //       // Create a new video/document object
 //       let newMedia = {
-//           userId: createdBy,
+//           adminId: createdBy,
 //           courseId,
 //           title,
 //           sdescription,
@@ -70,7 +70,7 @@ const util = require("util");
 //   });
 // };
 
-const uploadVideoAndThumbnail = (req, res) => {
+const createVideo = (req, res) => {
   console.log("req.body:", req.body);
   console.log("req.files:", req.files);
 
@@ -100,7 +100,7 @@ const uploadVideoAndThumbnail = (req, res) => {
       dvideo === "true" ? "Use as a Demo Video" : "No demo video";
 
     const newMedia = {
-      userId: createdBy,
+      adminId: createdBy,
       courseId,
       title,
       sdescription,
@@ -151,25 +151,46 @@ const uploadVideoAndThumbnail = (req, res) => {
 // Controller to get all videos
 const getAllVideos = async (req, res) => {
   try {
-    const videos = await Video.find();
+    const { search, page = 1, limit = 10, sortBy = 'title', order = 'asc' } = req.query;
+    const query = {};
+    if (search) {
+      query.title = new RegExp(search, "i");
+    }
+
+    // Calculate the total number of courses that match the query
+    const totalVideo = await Video.countDocuments(query);
+
+    // Calculate the total number of pages
+    const pageCount = Math.ceil(totalVideo / limit);
+
+    // Fetch the videos for the current page
+    const videos = await Video.find(query)
+    .sort({ [sortBy]: order === 'asc' ? 1 : -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
 
     // Fetch course details for each video
     const videoData = await Promise.all(
       videos.map(async (video) => {
         const course = await Course.findById(video.courseId);
-        const user = await User.findById(video.userId);
-        const updatedByUser = await User.findById(video.updatedBy);
+        const admin = await adminModel.findById(video.adminId);
+        const updatedByAdmin = await adminModel.findById(video.updatedBy);
 
         return {
           ...video.toObject(),
           course: course ? course.cname : null,
-          user: user ? user.name : null,
-          updatedBy: updatedByUser ? updatedByUser.name : null,
+          admin: admin ? admin.name : null,
+          updatedBy: updatedByAdmin ? updatedByAdmin.name : null,
         };
       })
     );
 
-    res.status(200).json(videoData);
+    res.status(200).json({
+      videoData: Array.isArray(videoData) ? videoData : [],
+      page: parseInt(page),
+      pageCount,
+      totalVideo,
+  });
   } catch (error) {
     console.error("Error fetching videos:", error);
     res.status(500).json({ error: "Failed to fetch videos" });
@@ -252,7 +273,7 @@ const updateVideoDetails = (req, res) => {
       video.tags = tags || video.tags;
       video.typev = typev || video.typev;
       video.courseId = courseId || video.courseId;
-      video.userId = createdBy || video.userId;
+      video.adminId = createdBy || video.adminId;
 
       if (typev === "document") {
         video.dvideo = null;
@@ -352,7 +373,7 @@ const updateVideoOrder = async (req, res) => {
 };
 
 module.exports = {
-  uploadVideoAndThumbnail,
+  createVideo,
   getAllVideos,
   // getVideo,
   // getThumbnail,

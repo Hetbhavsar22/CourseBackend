@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
-const userModel = require("../Model/userModel");
+const adminModel = require("../Model/adminModel");
 const jwt = require("jsonwebtoken");
 const SECRET_KEY = process.env.SECRET_KEY;
 const upload = require("../middleware/upload");
@@ -20,17 +20,17 @@ const changePassword = async (req, res) => {
 
   try {
     const decodedToken = jwt.verify(token, SECRET_KEY);
-    const userId = decodedToken.id;
+    const adminId = decodedToken.id;
 
-    const existingUser = await userModel.findById(userId);
-    if (!existingUser) {
-      return res.status(404).json({ message: "User doesn't exist!" });
+    const existingAdmin = await adminModel.findById(adminId);
+    if (!existingAdmin) {
+      return res.status(404).json({ message: "Admin doesn't exist!" });
     }
 
     // Compare the old password with the stored hashed password
     const isCurrentPasswordCorrect = await bcrypt.compare(
       currentPassword,
-      existingUser.password
+      existingAdmin.password
     );
 
     if (!isCurrentPasswordCorrect) {
@@ -41,8 +41,8 @@ const changePassword = async (req, res) => {
 
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-    existingUser.password = hashedNewPassword;
-    await existingUser.save();
+    existingAdmin.password = hashedNewPassword;
+    await existingAdmin.save();
 
     res.status(200).json({ message: "Password changed successfully!" });
   } catch (error) {
@@ -72,29 +72,30 @@ const updateDetails = async (req, res) => {
 
     try {
       const decodedToken = jwt.verify(token, SECRET_KEY);
-      const userId = decodedToken.id;
+      const adminId = decodedToken.id;
 
-      const existingUser = await userModel.findById(userId);
-      if (!existingUser) {
-        return res.status(404).json({ message: "User not found!" });
+      const existingAdmin = await adminModel.findById(adminId);
+      if (!existingAdmin) {
+        return res.status(404).json({ message: "Admin not found!" });
       }
 
-      // Update user details
+      // Update admin details
       const { name } = req.body;
       if (name) {
-        existingUser.name = name;
+        existingAdmin.name = name;
       }
 
       // Update profile image if provided
-      if (req.file) {
-        existingUser.profileImage = `/profile_images/${req.file.filename}`;
+      if (req.files && req.files.profileImage && req.files.profileImage[0]) {
+        existingAdmin.profileImage = `/profile_images/${req.files.profileImage[0].filename}`;
+        
       }
 
-      await existingUser.save();
+      await existingAdmin.save();
 
       res
         .status(200)
-        .json({ message: "Details changed successfully!", user: existingUser });
+        .json({ message: "Details changed successfully!", admin: existingAdmin });
     } catch (error) {
       console.error("Error updating details:", error.message);
       res.status(500).json({ message: "Something went wrong!" });
