@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const {
   createCourse,
   getAllCourses,
-  // getCourseById,
+  getCourseById,
   updateCourse,
   deleteCourse,
   courseCheckout,
@@ -20,8 +20,8 @@ router.post('/:adminId/coursedetails',
   // courseValidationRules, validate, 
   createCourse);
 router.get('/courseList', getAllCourses);
-// router.get('/coursedetails/:id', getCourseById);
-router.post('/coursedetails/:courseId',upload.none(), updateCourse);
+router.get('/coursedetails/:id', getCourseById);
+router.post('/coursedetails/:courseId', updateCourse);
 router.delete('/coursedetails/:id', deleteCourse);
 router.post('/courseCheckout', courseCheckout);
 

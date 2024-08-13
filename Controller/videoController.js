@@ -151,7 +151,7 @@ const createVideo = (req, res) => {
 // Controller to get all videos
 const getAllVideos = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, sortBy = 'title', order = 'asc' } = req.query;
+    const { search, page = 1, limit = 4, sortBy = 'title', order = 'asc' } = req.query;
     const query = {};
     if (search) {
       query.title = new RegExp(search, "i");

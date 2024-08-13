@@ -32,6 +32,9 @@ const courseSchema = new Schema(
     dprice: {
       type: Number,
     },
+    courseGst: {
+      type: Number,
+    },
     courseType: {
       type: String,
       // enum: ["80% complete", "all open", "time to time"],

@@ -5,6 +5,8 @@ const userModel = require("../Model/userModel");
 const adminModel = require("../Model/adminModel");
 const Enrollment = require("../Model/enrollmentModel"); 
 const upload = require("../middleware/upload");
+const path = require("path");
+const fs = require("fs");
 
 // Validation rules
 // const courseValidationRules = [
@@ -64,6 +66,7 @@ const createCourse = async (req, res) => {
         language,
         price,
         dprice,
+        courseGst,
         courseType,
         percentage,
         startTime,
@@ -92,10 +95,11 @@ const createCourse = async (req, res) => {
         totalVideo,
         courseImage,
         hours,
-        price,
         description,
         language,
+        price,
         dprice,
+        courseGst,
         courseType,
         percentage: courseType === "percentage" ? percentage : null,
         startTime: courseType === "timeIntervals" ? startTime : null,
@@ -112,24 +116,6 @@ const createCourse = async (req, res) => {
     }
   });
 };
-
-// Controller to get all courses
-// const getAllCourses = async (req, res) => {
-//   try {
-//     const { search } = req.query;
-
-//     const query = {};
-//     if (search) {
-//       query.cname = new RegExp(search, "i");
-//     }
-
-//     console.log("Search Query:", query);
-//     const courses = await Course.find(query);
-//     res.json(courses);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
 
 const getAllCourses = async (req, res) => {
   try {
@@ -164,24 +150,30 @@ const getAllCourses = async (req, res) => {
 };
 
 // Controller to get a course by ID
-// const getCourseById = async (req, res) => {
-//   try {
-//     const courseId = req.params.id;
+ const getCourseById = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-//     if (!mongoose.Types.ObjectId.isValid(courseId)) {
-//       return res.status(400).json({ error: "Invalid course ID" });
-//     }
+    // Validate the ID format (assuming you use MongoDB ObjectId)
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid course ID" });
+    }
 
-//     const course = await Course.findById(courseId);
-//     if (!course) {
-//       return res.status(404).json({ error: "Course not found" });
-//     }
-//     res.status(200).json(course);
-//   } catch (error) {
-//     console.error("Error fetching course:", error);
-//     res.status(500).json({ error: "Failed to fetch course" });
-//   }
-// };
+    // Find the course by ID
+    const course = await Course.findById(id);
+
+    // Check if the course exists
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Send the course details as a response
+    res.json(course);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 
 const updateCourse = async (req, res) => {
   upload(req, res, async (err) => {
@@ -295,7 +287,7 @@ const courseCheckout = async (req, res) => {
 module.exports = {
   createCourse,
   getAllCourses,
-  // getCourseById,
+  getCourseById,
   updateCourse,
   deleteCourse,
   courseCheckout,

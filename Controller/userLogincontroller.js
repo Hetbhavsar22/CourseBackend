@@ -107,7 +107,7 @@ const getAllUser = async (req, res) => {
     const pageCount = Math.ceil(totalUser / limit);
     // Fetch the Users for the current page
     const users = await userModel
-      .find()
+      .find(query)
       .sort({ [sortBy]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));

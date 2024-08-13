@@ -60,7 +60,19 @@ const register = async (req, res) => {
   }
 };
 
+const getAdminDetails = async (req, res) => {
+  try {
+    const admins = await adminModel.find();
+    res.json({
+      admins,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
 module.exports = {
   login,
-  register
+  register,
+  getAdminDetails
 };
