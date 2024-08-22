@@ -14,26 +14,26 @@ const UserSchema = new Schema(
     },
 
     phoneNumber: {
-        type: Number,
-      },
+      type: Number,
+    },
 
-      otp: {
-        type: String,
-      },
+    otp: {
+      type: String,
+    },
 
-      enrolledCourse: {
-        type: String,
-      },
+    enrolledCourse: {
+      type: String,
+    },
 
-      active: {
-        type: Boolean,
-        default: true,
-      },
-      
-      createdAt: {
-        type: Date,
-        default: Date.now,
-      },
+    active: {
+      type: Boolean,
+      default: true,
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { timestamps: true }
 );

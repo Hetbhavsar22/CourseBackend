@@ -1,4 +1,4 @@
-const userModel = require("../Model/userModel"); // Adjust the path as needed
+const userModel = require("../../Model/userModel"); // Adjust the path as needed
 
 // Edit User Details
 const editUser = async (req, res) => {

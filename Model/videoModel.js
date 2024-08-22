@@ -6,7 +6,6 @@ const videoSchema = new Schema(
     adminId: {
       type: Schema.Types.ObjectId,
       ref: "admin",
-      required: true,
     },
     courseId: {
       type: Schema.Types.ObjectId,
@@ -17,11 +16,7 @@ const videoSchema = new Schema(
       type: String,
       required: true,
     },
-    sdescription: {
-      type: String,
-      required: true,
-    },
-    ldescription: {
+    description: {
       type: String,
       required: true,
     },
@@ -67,7 +62,6 @@ const videoSchema = new Schema(
     typev: {
       type: String,
       enum: ['video', 'document'],
-      required: true,
     },
     active: {
       type: Boolean,

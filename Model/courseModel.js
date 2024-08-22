@@ -4,7 +4,7 @@ const Schema = mongoose.Schema;
 const courseSchema = new Schema(
   {
     adminId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Admin",
       required: true,
     },
@@ -20,7 +20,10 @@ const courseSchema = new Schema(
     hours: {
       type: Number,
     },
-    description: {
+    shortDescription: {
+      type: String,
+    },
+    longDescription: {
       type: String,
     },
     language: {

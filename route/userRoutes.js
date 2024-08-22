@@ -1,8 +1,10 @@
 const multer = require('multer');
 const express = require('express');
-const { login, register, getAllUser } = require('../Controller/userLogincontroller');
-const { editUser, deleteUser } = require("../Controller/editUserController");
+const { login, register, getAllUser } = require('../Controller/user/userLoginController');
+const { editUser, deleteUser } = require("../Controller/user/editUserController");
 const userModel = require('../Model/userModel')
+const { validateRequest } = require('../middleware/validationMiddleware');
+const { payment } = require('../Controller/user/RazorpayController');
 // const { changePassword, updateDetails } = require('../Controller/adminChangepassword');
 const router = express.Router();
 
@@ -30,6 +32,13 @@ router.patch('/:id/toggle', async (req, res) => {
       console.error("Error toggling user:", error);
       res.status(500).json({ message: 'Server error' });
     }
+  });
+
+
+  //Razorpay Route
+  router.post('/purchase-course', validateRequest, (req, res) => {
+    // Your course purchase logic here...
+    res.status(200).json({ message: 'Course purchased successfully.' });
   });
 
 module.exports = router;

@@ -144,7 +144,7 @@ const storage = multer.diskStorage({
 
 const limits = {
   fileSize: (req, file, cb) => {
-    const type = req.body.typev;
+    const type = req.body.type;
 
     if (type === "video") {
       if (file.fieldname === "videofile") {
@@ -172,6 +172,9 @@ const limits = {
 
 const fileFilter = (req, file, cb) => {
   const type = req.body.typev;
+  console.log("File: ", file)
+  console.log("type: ", type)
+  console.log("req body: ", req.body)
 
   if (type === "video") {
     if (file.fieldname === "videofile") {
@@ -211,94 +214,3 @@ const upload = multer({ storage, limits, fileFilter }).fields([
 ]);
 
 module.exports = upload;
-
-// const multer = require("multer");
-// const path = require("path");
-
-// // Define file size limits
-// const FILE_SIZE_LIMITS = {
-//   video: 1000 * 1024 * 1024, // 1 GB
-//   thumbnail: 500 * 1024 * 1024, // 500 MB
-//   pdf: 50 * 1024 * 1024, // 50 MB
-//   ppt: 50 * 1024 * 1024, // 50 MB
-//   doc: 50 * 1024 * 1024, // 50 MB
-//   profileImage: 5 * 1024 * 1024 // 5 MB
-// };
-
-// // Storage configuration
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     const type = req.body.typev;
-
-//     if (type === "video") {
-//       if (file.fieldname === "videofile") {
-//         cb(null, "public/videos");
-//       } else if (file.fieldname === "thumbnail") {
-//         cb(null, "public/thumbnails");
-//       }
-//     } else if (type === "document") {
-//       if (file.fieldname === "pdf") {
-//         cb(null, "public/pdf");
-//       } else if (file.fieldname === "ppt") {
-//         cb(null, "public/ppt");
-//       } else if (file.fieldname === "doc") {
-//         cb(null, "public/document");
-//       }
-//     } else {
-//       cb(null, "public/profile_images");
-//     }
-//   },
-//   filename: (req, file, cb) => {
-//     const type = req.body.typev;
-    
-//     cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
-//   }
-// });
-
-// // Multer configuration
-// const upload = multer({
-//   storage,
-//   limits: {
-//     fileSize: (req, file, cb) => {
-//       const type = req.body.typev;
-//       const limit = FILE_SIZE_LIMITS[type] || FILE_SIZE_LIMITS.profileImage;
-//       cb(null, limit);
-//     }
-//   },
-//   fileFilter: (req, file, cb) => {
-//     const type = req.body.typev;
-    
-//     if (type === "video") {
-//       if (file.fieldname === "videofile" && file.mimetype.startsWith("video/")) {
-//         cb(null, true);
-//       } else if (file.fieldname === "thumbnail" && file.mimetype.startsWith("image/")) {
-//         cb(null, true);
-//       } else {
-//         cb(new Error("Invalid file type for video"), false);
-//       }
-//     } else if (type === "document") {
-//       if (file.fieldname === "pdf" && file.mimetype === 'application/pdf') {
-//         cb(null, true);
-//       } else if (file.fieldname === "doc" && file.mimetype === 'application/msword') {
-//         cb(null, true);
-//       } else if (file.fieldname === "ppt" && file.mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-//         cb(null, true);
-//       } else {
-//         cb(new Error("Invalid document type"), false);
-//       }
-//     } else if (file.mimetype.startsWith("image/")) {
-//       cb(null, true);
-//     } else {
-//       cb(new Error("Invalid file type"), false);
-//     }
-//   }
-// }).fields([
-//   { name: "videofile", maxCount: 1 },
-//   { name: "thumbnail", maxCount: 1 },
-//   { name: "pdf", maxCount: 1 },
-//   { name: "ppt", maxCount: 1 },
-//   { name: "doc", maxCount: 1 },
-//   { name: "profileImage", maxCount: 1 }
-// ]);
-
-// module.exports = upload;
