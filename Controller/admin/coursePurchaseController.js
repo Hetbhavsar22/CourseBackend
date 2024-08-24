@@ -1,6 +1,8 @@
 const CoursePurchase = require("../../Model/coursePurchaseModel");
 const mongoose = require("mongoose");
 const { body, validationResult } = require("express-validator");
+const { options } = require("joi");
+
 
 // Create a new course purchase
 const createCoursePurchase = async (req, res) => {
@@ -253,6 +255,5 @@ module.exports = {
   createCoursePurchase,
   getAllCoursePurchases,
   getCoursePurchaseById,
-  // updateCourse,
   deleteCoursePurchaseById,
 };

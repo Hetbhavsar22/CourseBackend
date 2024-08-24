@@ -73,10 +73,11 @@ const coursePurchaseSchema = new Schema(
       type: String,
       unique: true,
     },
-    cancelBillNumber: {
-      type: String,
-      unique: true,
-    },
+    // cancelBillNumber: {
+    //   type: String,
+    //   unique: true,
+    //   require: false,
+    // },
     discountCode: {
       type: String,
       sparse: true,

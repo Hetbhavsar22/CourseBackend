@@ -16,6 +16,10 @@ const enrollmentSchema = new Schema({
     type: Date,
     default: Date.now,
   },
+  percentageCompleted: {
+    type: Number,
+    default: 0,  // Start with 0% completion
+  },
 });
 
 const Enrollment = mongoose.model("Enrollment", enrollmentSchema);

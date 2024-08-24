@@ -4,12 +4,15 @@ const Course = require("../../Model/courseModel");
 const adminModel = require("../../Model/adminModel");
 const path = require("path");
 const fs = require("fs");
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath('\ffmpeg\bin'); 
+// Replace with the path to your ffmpeg binary
 const util = require("util");
 const { body, validationResult } = require("express-validator");
 const { Console } = require("console");
 
 const createVideo = (req, res) => {
-  console.log("start1");
+  
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
@@ -43,14 +46,10 @@ const createVideo = (req, res) => {
         body("courseId")
           .notEmpty()
           .withMessage("Course ID is required")
-          // .custom((value) => mongoose.Types.ObjectId.isValid(value))
-          // .withMessage("Invalid Course ID")
           .run(req),
         body("createdBy")
           .notEmpty()
           .withMessage("CreatedBy is required")
-          // .custom((value) => mongoose.Types.ObjectId.isValid(value))
-          // .withMessage("Invalid CreatedBy ID")
           .run(req),
       ]);
 
@@ -90,7 +89,6 @@ const createVideo = (req, res) => {
         description,
         tags,
         typev,
-        // createdBy: admin.name,
         active: true,
       };
 
@@ -108,6 +106,42 @@ const createVideo = (req, res) => {
         newMedia.videofile = req.files["videofile"]
           ? req.files["videofile"][0].path
           : undefined;
+
+        // Generate DASH manifest using FFmpeg
+        if (newMedia.videofile) {
+          const videoFilePath = newMedia.videofile;
+          const outputDir = path.join(
+            __dirname,
+            "../../public/videos",
+            courseId
+          );
+
+          // Ensure output directory exists
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+
+          const manifestPath = path.join(outputDir, "manifest.mpd");
+
+          await new Promise((resolve, reject) => {
+            ffmpeg(videoFilePath)
+              .output(manifestPath)
+              .outputOptions([
+                "-map 0",
+                "-use_timeline 1",
+                "-use_template 1",
+                "-init_seg_name init_$RepresentationID$.mp4",
+                "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
+                "-f dash",
+              ])
+              .on("end", resolve)
+              .on("error", reject)
+              .run();
+          });
+
+          const manifestUrl = `${process.env.BASE_URL}/videos/${courseId}/manifest.mpd`;
+          newMedia.manifestUrl = manifestUrl;
+        }
       }
 
       const newVideo = new Video(newMedia);
