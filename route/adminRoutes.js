@@ -9,7 +9,7 @@ const { addTag, getAllTags, editTag, deleteTag, tagtoggleButton } = require('../
 const {
   login,
   verifyOTP,
-  register,
+  resend_Otp,
   getAdminDetails,
   getAdminById,
 } = require("../Controller/admin/adminLoginController");
@@ -25,13 +25,8 @@ const {
   deleteCourse,
   courseCheckout,
   coursetoggleButton,
+  getdashboard,
 } = require("../Controller/admin/courseController");
-const {
-    createCoursePurchase,
-    getAllCoursePurchases,
-    getCoursePurchaseById,
-    deleteCoursePurchaseById,
-  } = require("../Controller/admin/coursePurchaseController");
   const {
     createOrder,
     getOrderById,
@@ -48,31 +43,22 @@ const { createVideo, getAllVideos, getVideosByCourse,
 //Admin Route
 router.post("/login", login);
 router.post("/verify-otp", verifyOTP);
-router.post("/register", register);
+router.post("/resend_Otp", resend_Otp);
 router.post("/change_password", auth, changePassword);
 router.post("/update_details", auth, updateDetails);
 router.get("/get_details", auth, getAdminDetails);
-router.get("/get_admin_details_by_id/:id", auth, getAdminById);
+router.get("/get_admin", auth, getAdminById);
 
 
 //Course Route
-router.post(
-  "/:adminId/coursedetails", auth,
-  // courseValidationRules, validate,
-  createCourse
-);
+router.post("/:adminId/coursedetails", auth, createCourse);
 router.get("/courseList", getAllCourses);
 router.get("/coursedetails/:id", getCourseById);
 router.post("/coursedetails/:courseId", updateCourse);
 router.delete("/coursedetails/:id", auth, deleteCourse);
 router.post("/courseCheckout", auth, courseCheckout);
 router.patch("/:id/coursetoggleButton", coursetoggleButton);
-
-//Course Purchase Route
-router.post("/coursePurchase", auth, createCoursePurchase);
-router.get("/getCoursePurchase", auth, getAllCoursePurchases);
-router.get("/getCoursePurchaseById:id", auth, getCoursePurchaseById);
-router.delete("/deleteCoursePurchase:id", auth, deleteCoursePurchaseById);
+router.get("/dashboard-stats", getdashboard);
 
 //Course Purchase Order Id
 router.post("/createOrder", createOrder);
@@ -87,8 +73,6 @@ router.get("/purchased-courses-byuser/:userid", purchasedCourses);
 router.post('/:courseId/upload', createVideo);
 router.get('/videodetails', auth, getAllVideos);
 router.get("/courseWiseVideo", auth, getVideosByCourse);
-// router.get('/:filename', getVideo);
-// router.get('/image/:thumbnail', getThumbnail);
 router.post('/editvideodetails/:id', auth, updateVideoDetails);
 router.delete('/videodetails/:id', auth, deleteVideo);
 router.post('/updateVideoOrder', auth, updateVideoOrder);

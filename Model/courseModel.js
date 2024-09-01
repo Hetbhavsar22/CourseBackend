@@ -10,6 +10,12 @@ const courseSchema = new Schema(
     },
     cname: {
       type: String,
+      validate: {
+        validator: function(v) {
+            return /^[a-zA-Z0-9\s]+$/.test(v);
+        },
+        message: props => `${props.value} contains special characters, which are not allowed!`
+    }
     },
     totalVideo: {
       type: Number,

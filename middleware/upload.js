@@ -78,10 +78,10 @@ const courseImageStorage = multer.diskStorage({
   },
 });
 
-// Multer configuration
+// Storage configuration for different types of files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const type = req.body.typev;
+    const type = req.body.type;
 
     if (type === "video") {
       if (file.fieldname === "videofile") {
@@ -89,7 +89,7 @@ const storage = multer.diskStorage({
       } else if (file.fieldname === "thumbnail") {
         cb(null, "public/thumbnails");
       } else {
-        cb(new Error("Invalid field name"), false);
+        cb(new Error("Invalid field name for video"), false);
       }
     } else if (type === "document") {
       if (file.fieldname === "pdf") {
@@ -99,7 +99,7 @@ const storage = multer.diskStorage({
       } else if (file.fieldname === "ppt") {
         cb(null, "public/ppt");
       } else {
-        cb(new Error("Invalid field name"), false);
+        cb(new Error("Invalid field name for document"), false);
       }
     } else if (file.fieldname === "profileImage") {
       cb(null, "public/profile_images");
@@ -110,38 +110,12 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const originalName = file.originalname;
     const timestamp = Date.now();
-    const type = req.body.typev;
-
-    if (type === "video") {
-      if (file.fieldname === "videofile") {
-        cb(null, `${originalName}`);
-      } else if (file.fieldname === "thumbnail") {
-        cb(null, `${originalName}`);
-      } else {
-        cb(new Error("Invalid field name"), false);
-      }
-    } else if (type === "document") {
-      if (file.fieldname === "pdf") {
-        cb(null, `${originalName}`);
-      } else if (file.fieldname === "doc") {
-        cb(null, `${originalName}`);
-      } else if (file.fieldname === "ppt") {
-        cb(null, `${originalName}`);
-      } else {
-        cb(new Error("Invalid field name"), false);
-      }
-    } else if (file.fieldname === "profileImage") {
-      cb(null, `${originalName}`);
-    } else if (file.fieldname === "courseImage") {
-      cb(null, `${originalName}`);
-    } else {
-      cb(new Error("Invalid field name"), false);
-    }
-  },
+    cb(null, `${timestamp}_${file.originalname}`);
+  }
 });
 
+// Define file limits based on type
 const limits = {
   fileSize: (req, file, cb) => {
     const type = req.body.type;
@@ -151,6 +125,8 @@ const limits = {
         cb(null, VIDEO_SIZE_LIMIT);
       } else if (file.fieldname === "thumbnail") {
         cb(null, THUMBNAIL_SIZE_LIMIT);
+      } else {
+        cb(new Error("Invalid file field for video"), false);
       }
     } else if (type === "document") {
       if (file.fieldname === "pdf") {
@@ -159,6 +135,8 @@ const limits = {
         cb(null, DOC_SIZE_LIMIT);
       } else if (file.fieldname === "ppt") {
         cb(null, PPT_SIZE_LIMIT);
+      } else {
+        cb(new Error("Invalid file field for document"), false);
       }
     } else if (file.fieldname === "profileImage") {
       cb(null, PROFILE_IMAGE_SIZE_LIMIT);
@@ -167,19 +145,17 @@ const limits = {
     } else {
       cb(new Error("Invalid field name"), false);
     }
-  },
+  }
 };
 
+// Define file filters
 const fileFilter = (req, file, cb) => {
-  const type = req.body.typev;
-  console.log("File: ", file)
-  console.log("type: ", type)
-  console.log("req body: ", req.body)
+  const type = req.body.type;
 
   if (type === "video") {
-    if (file.fieldname === "videofile") {
+    if (file.fieldname === "videofile" && file.mimetype.startsWith("video/")) {
       cb(null, true);
-    } else if (file.fieldname === "thumbnail") {
+    } else if (file.fieldname === "thumbnail" && file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type for video"), false);
@@ -203,6 +179,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// Create multer upload middleware
 const upload = multer({ storage, limits, fileFilter }).fields([
   { name: "videofile", maxCount: 1 },
   { name: "thumbnail", maxCount: 1 },

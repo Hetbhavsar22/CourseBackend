@@ -129,12 +129,12 @@ const getallorders = async (req, res) => {
     } = req.query;
 
     const query = {};
-    //   if (search) {
-    //     query["$or"] = [
-    //       { "userId.name": new RegExp(search, "i") },
-    //       { "courseId.cname": new RegExp(search, "i") }
-    //     ];
-    //   }
+      if (search) {
+        query["$or"] = [
+          { "userId.name": new RegExp(search, "i") },
+          { "courseId.cname": new RegExp(search, "i") }
+        ];
+      }
     if (search) {
       query.userName = new RegExp(search, "i");
     }

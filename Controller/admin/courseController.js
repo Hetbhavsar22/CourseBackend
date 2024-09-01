@@ -1,13 +1,16 @@
 // const { body, validationResult } = require("express-validator");
 const mongoose = require("mongoose");
 const Course = require("../../Model/courseModel");
+const Video = require("../../Model/videoModel");
 const userModel = require("../../Model/userModel");
 const adminModel = require("../../Model/adminModel");
 const Enrollment = require("../../Model/enrollmentModel");
+const Order = require("../../Model/oder_IdModel");
 const upload = require("../../middleware/upload");
 const path = require("path");
 const fs = require("fs");
 const { body, validationResult } = require("express-validator");
+const util = require("util");
 
 // Controller to create a new course
 const createCourse = async (req, res) => {
@@ -28,6 +31,16 @@ const createCourse = async (req, res) => {
           .withMessage("Course name is required")
           .isLength({ min: 1, max: 50 })
           .withMessage("Course name must be between 1 and 50 characters long")
+          .custom((value) => {
+            // Check for special characters in course name
+            const specialCharRegex = /[^a-zA-Z0-9\s]/;
+            if (specialCharRegex.test(value)) {
+              throw new Error(
+                "Course name should not contain special characters."
+              );
+            }
+            return true;
+          })
           .run(req),
         body("totalVideo")
           .notEmpty()
@@ -62,10 +75,45 @@ const createCourse = async (req, res) => {
           .withMessage("Price is required")
           .isFloat()
           .withMessage("Price must be a number")
+          .custom((value) => {
+            if (value > 500000) {
+              throw new Error("Price must be less than or equal to 5 lakhs.");
+            }
+            return true;
+          })
           .run(req),
-        body("courseType")
+        body("dprice")
+          .notEmpty()
+          .withMessage("Display Price is required")
+          .isFloat()
+          .withMessage("Display Price must be a number")
+          .custom((value, { req }) => {
+            if (value >= req.body.price) {
+              throw new Error(
+                "Display Price should be less than Actual Price."
+              );
+            }
+            return true;
+          })
+          .run(req),
+          body("courseType")
           .notEmpty()
           .withMessage("Course type is required")
+          .run(req),
+        body("percentage")
+          .optional()
+          .isFloat({ min: 10, max: 100 })
+          .withMessage("Percentage should be between 10 and 100.")
+          .run(req),
+        body("startTime")
+          .optional()
+          .isISO8601()
+          .withMessage("Start time should be a valid ISO8601 date string")
+          .run(req),
+        body("endTime")
+          .optional()
+          .isISO8601()
+          .withMessage("End time should be a valid ISO8601 date string")
           .run(req),
       ]);
 
@@ -258,12 +306,19 @@ const updateCourse = async (req, res) => {
       //   .run(req),
 
       body("cname")
-        .optional()
-        .notEmpty()
-        .withMessage("Course name cannot be empty")
-        .isLength({ min: 1, max: 50 })
-        .withMessage("Course name must be between 1 and 50 characters long")
-        .run(req),
+          .notEmpty()
+          .withMessage("Course name is required")
+          .isLength({ min: 1, max: 50 })
+          .withMessage("Course name must be between 1 and 50 characters long")
+          .custom((value) => {
+            // Check for special characters in course name
+            const specialCharRegex = /[^a-zA-Z0-9\s]/;
+            if (specialCharRegex.test(value)) {
+              throw new Error("Course name should not contain special characters.");
+            }
+            return true;
+          })
+          .run(req),
 
       body("totalVideo")
         .notEmpty()
@@ -299,50 +354,49 @@ const updateCourse = async (req, res) => {
         .withMessage("Invalid language")
         .run(req),
 
-      body("price")
-        .optional()
-        .isFloat({ gt: 0 })
-        .withMessage("Price must be a positive number")
+        body("price")
+        .notEmpty()
+        .withMessage("Price is required")
+        .isFloat()
+        .withMessage("Price must be a number")
+        .custom(value => {
+          if (value > 500000) {
+            throw new Error("Price must be less than or equal to 5 lakhs.");
+          }
+          return true;
+        })
         .run(req),
-
       body("dprice")
-        .optional()
-        .isFloat({ gt: 0 })
-        .withMessage("Discounted price must be a positive number")
-        // .custom((value, { req }) => value < req.body.price)
-        // .withMessage("Discounted price must be less than the original price")
+        .notEmpty()
+        .withMessage("Display Price is required")
+        .isFloat()
+        .withMessage("Display Price must be a number")
+        .custom((value, { req }) => {
+          if (value >= req.body.price) {
+            throw new Error("Display Price should be less than Actual Price.");
+          }
+          return true;
+        })
         .run(req),
 
-      body("courseType")
+        body("courseType")
         .notEmpty()
         .withMessage("Course type is required")
-        .isIn(["percentage", "timeIntervals", "allOpen"])
-        .withMessage("Invalid course type")
         .run(req),
-
       body("percentage")
         .optional()
-        .if(body("courseType").equals("percentage"))
-        .isFloat({ min: 0, max: 100 })
-        .withMessage("Percentage must be between 0 and 100")
+        .isFloat({ min: 10, max: 100 })
+        .withMessage("Percentage should be between 10 and 100.")
         .run(req),
-
       body("startTime")
         .optional()
-        .if(body("courseType").equals("timeIntervals"))
-        // .isISO8601()
-        // .withMessage("Start time must be a valid date")
+        .isISO8601()
+        .withMessage("Start time should be a valid ISO8601 date string")
         .run(req),
-
       body("endTime")
         .optional()
-        .if(body("courseType").equals("timeIntervals"))
-        // .isISO8601()
-        // .withMessage("End time must be a valid date")
-        .custom(
-          (value, { req }) => new Date(value) > new Date(req.body.startTime)
-        )
-        .withMessage("End time must be after start time")
+        .isISO8601()
+        .withMessage("End time should be a valid ISO8601 date string")
         .run(req),
     ]);
 
@@ -419,18 +473,70 @@ const updateCourse = async (req, res) => {
 };
 
 // Controller to delete a course
+const unlinkFile = util.promisify(fs.unlink);
+
 const deleteCourse = async (req, res) => {
   try {
-    const deletedCourse = await Course.findByIdAndDelete(req.params.id);
+    const courseId = req.params.id;
+
+    // Find and delete all videos associated with the course
+    const videos = await Video.find({ courseId });
+    for (const video of videos) {
+      // Delete associated files if they exist
+      if (video.thumbnail) {
+        const thumbnailPath = path.join(
+          __dirname,
+          "../public/thumbnails",
+          video.thumbnail
+        );
+        try {
+          await unlinkFile(thumbnailPath);
+        } catch (err) {
+          console.error(
+            `Failed to delete thumbnail at ${thumbnailPath}:`,
+            err.message
+          );
+        }
+      }
+
+      if (video.videofile) {
+        const videoPath = path.join(
+          __dirname,
+          "../public/videos",
+          video.videofile
+        );
+        try {
+          await unlinkFile(videoPath);
+        } catch (err) {
+          console.error(
+            `Failed to delete video file at ${videoPath}:`,
+            err.message
+          );
+        }
+      }
+
+      // Delete the video document
+      await Video.findByIdAndDelete(video._id);
+    }
+
+    // Now delete the course
+    const deletedCourse = await Course.findByIdAndDelete(courseId);
     if (!deletedCourse) {
       return res.json({
         status: 404,
         error: "Course not found",
       });
     }
+
+    // Delete all orders related to this course
+    await Order.deleteMany({ courseId });
+
+    // Delete all transaction related to this course
+    // await transaction.deleteMany({ courseId });
+
     res.json({
       status: 200,
-      message: "Course deleted successfully",
+      message: "Course and associated videos deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting course:", error);
@@ -558,6 +664,25 @@ const coursetoggleButton = async (req, res) => {
   }
 };
 
+const getdashboard = async (req, res) => {
+  try {
+    const totalCourses = await Course.countDocuments();
+
+    const activeCourses = await Course.countDocuments({ active: true });
+
+    const totalVideos = await Video.countDocuments();
+
+    res.status(200).json({
+      totalCourses,
+      activeCourses,
+      totalVideos,
+    });
+  } catch (error) {
+    console.error("Error fetching dashboard stats:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -566,4 +691,5 @@ module.exports = {
   deleteCourse,
   courseCheckout,
   coursetoggleButton,
+  getdashboard,
 };

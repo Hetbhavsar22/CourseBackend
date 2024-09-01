@@ -1,14 +1,34 @@
 const bcrypt = require("bcrypt");
-const adminModel = require("../../Model/adminModel");
 const jwt = require("jsonwebtoken");
-const { required } = require("joi");
+const adminModel = require("../../Model/adminModel");
 const SECRET_KEY = process.env.SECRET_KEY;
 const { body, validationResult } = require("express-validator");
+require("dotenv").config();
+const sendOTPObj = require("../../Externalapi/Sendotp");
+
+const { ObjectId } = require("mongodb");
 
 const generateOTP = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
+function generateOtpVerificationToken() {
+  const objectId = new ObjectId();
+  const hexString = objectId.toHexString();
+  const uniqueString = hexString.padEnd(32, "0").substring(0, 32);
+  return uniqueString;
+}
+const generateToken = (adminDetail) => {
+  const payload = {
+    id: adminDetail._id,
+    email: adminDetail.email,
+    name: adminDetail.name,
+    profile_image: adminDetail.profile_image,
+  };
 
+  const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: "24h" });
+
+  return token;
+};
 const login = async (req, res) => {
   try {
     await Promise.all([
@@ -21,7 +41,12 @@ const login = async (req, res) => {
         .withMessage("Email address cannot be longer than 100 characters")
         .run(req),
       body("password").notEmpty().withMessage("Password is required").run(req),
+      body("browserFingerprint")
+        .notEmpty()
+        .withMessage("Browser fingerprint is required")
+        .run(req),
     ]);
+
     const validationErrorObj = validationResult(req);
     if (!validationErrorObj.isEmpty()) {
       return res.json({
@@ -31,191 +56,102 @@ const login = async (req, res) => {
     }
 
     const { email, password } = req.body;
+    const adminDetail = await adminModel.findOne({ email });
 
-    const user = await adminModel.findOne({ email });
-    if (!user) {
+    if (!adminDetail) {
       return res.json({
         status: 401,
-        message: "Email does not exist",
+        message: "Email not exist",
       });
     }
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      adminDetail.password
+    );
     if (!isPasswordValid) {
       return res.json({
         status: 401,
-        message: "Invalid password",
+        message: "Password is invalid",
       });
     }
-    // Generate OTP
-    const otp = generateOTP();
-    const otp_expire_time = Date.now() + 5 * 60 * 1000; // 5 minutes from now
-    // Save OTP and expiration time in the database
-    user.otp_number = otp;
-    user.otp_expire_time = otp_expire_time;
-    user.save();
-    return res.json({
-      status: 200,
-      message: "OTP sent to your mobile number.",
-      otp, // Include this only for testing; usually, you would send this via SMS
-    });
+
+    const browserFingerPrint =
+      req.headers["user-agent"] + req.connection.remoteAddress;
+
+    const currentDate = new Date();
+
+    if (browserFingerPrint != adminDetail.last_Browser_finger_print) {
+      adminDetail.otp = await generateOTP();
+      adminDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000);
+      adminDetail.verification_token = await generateOtpVerificationToken();
+      adminDetail.login_expire_time = new Date(
+        currentDate.getTime() + 24 * 60 * 60 * 1000
+      );
+      //Send otp to mobile number start
+      /*var otpParams = {
+        country_code: adminDetail.cointry_code,
+        phone_number: adminDetail.mobile_number,
+        project_name: "course",
+        message_type: "send_opt",
+        variable: {
+          "#var1": adminDetail.otp,
+        },
+      };
+      var otpResponse = await sendOTPObj.sendMobileOTP(otpParams);
+      if (otpResponse.data.status !== 200) {
+        return res.json({
+          status: 401,
+          message: 'Send otp issue.please try again later'
+        });
+      }*/
+      //Send otp to mobile number end
+      adminDetail.save();
+      return res.json({
+        status: 200,
+        message: "OTP has been sent",
+        data: {
+          verification_token: adminDetail.verification_token,
+          is_otp_required: true,
+          otp: adminDetail.otp, //When project on production comment this line without forgot
+        },
+      });
+    } else {
+      const token = generateToken(adminDetail);
+      adminDetail.token = token;
+      adminDetail.login_expire_time = new Date(
+        currentDate.getTime() + 24 * 60 * 60 * 1000
+      );
+      await adminDetail.save();
+
+      return res.json({
+        status: 200,
+        message: "Login successful",
+        data: {
+          id: adminDetail._id,
+          name: adminDetail.name,
+          email: adminDetail.email,
+          profile_image: adminDetail.profile_image,
+          token: token,
+        },
+      });
+    }
   } catch (error) {
+    console.error("Login error:", error);
     return res.json({
-      status: 500,
-      message: "Internal server error",
-      error: error.message,
+      status: 401,
+      message: "Something went wrong. please try again later",
     });
   }
 };
 
 const verifyOTP = async (req, res) => {
   try {
-    await body("email")
-      .notEmpty()
-      .withMessage("Email is required")
-      .isEmail()
-      .withMessage("Enter a valid email address")
-      .isLength({ max: 100 })
-      .withMessage("Email address cannot be longer than 100 characters")
-      .run(req),
-      await body("otp").notEmpty().withMessage("OTP is required").run(req);
-
-    const validationErrorObj = validationResult(req);
-    if (!validationErrorObj.isEmpty()) {
-      return res.json({
-        status: 401,
-        message: validationErrorObj.errors[0].msg,
-      });
-    }
-
-    const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.json({
-        status: 400,
-        message: "Email and OTP are required.",
-      });
-    }
-    const admin = await adminModel.findOne({ email: email });
-
-    if (!admin) {
-      return res.json({
-        status: 400,
-        message: "Admin does not exist.",
-      });
-    }
-
-    // Check if the OTP is correct and not expired
-    if (admin.otp_number !== otp) {
-      return res.json({
-        status: 400,
-        message: "Invalid OTP.",
-      });
-    }
-
-    const currentTime = new Date().getTime();
-    const otpExpireTime = new Date(admin.otp_expire_time).getTime();
-    if (currentTime > otpExpireTime) {
-      // Remove expired OTP from the database
-      await adminModel.updateOne(
-        { email: email },
-        { $unset: { otp_number: "", otp_expire_time: "" } }
-      );
-
-      return res.json({
-        status: 400,
-        message: "OTP has expired.",
-      });
-    }
-
-    // Remove OTP from the database after successful verification
-    await adminModel.updateOne(
-      { email: email },
-      { $unset: { otp_number: "", otp_expire_time: "" } }
-    );
-
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        id: admin._id,
-        profile_image: admin.profile_image,
-        name: admin.name,
-        email: admin.email,
-        createdAt: admin.createdAt,
-      },
-      SECRET_KEY
-    );
-
-    if (!token) {
-      return res.json({
-        status: 500,
-        message: "Something went wrong. Please try again later.",
-      });
-    }
-
-    // Return success response
-    return res.json({
-      status: 200,
-      data: {
-        token: token,
-        user: {
-          id: admin._id,
-          email: admin.email,
-          profile_image: admin.profile_image,
-          name : admin.name,
-        },
-      },
-    });
-  } catch (error) {
-    return res.json({
-      status: 500,
-      message: error.message,
-    });
-  }
-};
-
-// Controller for admin registration
-const register = async (req, res) => {
-  try {
     await Promise.all([
-      body("name")
+      body("otp").notEmpty().withMessage("OTP is required").run(req),
+      body("verification_token")
         .notEmpty()
-        .withMessage("Name is required")
-        .isLength({ min: 3 })
-        .withMessage("Name must be at least 3 characters long")
-        .isLength({ max: 50 })
-        .withMessage("Name cannot be longer than 50 characters")
-        .matches(/^[a-zA-Z\s]+$/)
-        .withMessage("Name can only contain letters and spaces")
-        .run(req),
-      body("email")
-        .notEmpty()
-        .withMessage("Email is required")
-        .isEmail()
-        .withMessage("Enter a valid email address")
-        .isLength({ max: 100 })
-        .withMessage("Email address cannot be longer than 100 characters")
-        .run(req),
-      body("password")
-        .notEmpty()
-        .withMessage("Password is required")
-        .isLength({ min: 6 })
-        .withMessage("Password must be at least 6 characters long")
-        .matches(/\d/)
-        .withMessage("Password must contain at least one number")
-        .matches(/[a-z]/)
-        .withMessage("Password must contain at least one lowercase letter")
-        .matches(/[A-Z]/)
-        .withMessage("Password must contain at least one uppercase letter")
-        .matches(/[\W_]/)
-        .withMessage("Password must contain at least one special character")
-        .run(req),
-      body("mobile_number")
-        .notEmpty()
-        .withMessage("Mobile number is required")
-        .isMobilePhone()
-        .withMessage("Enter a valid mobile number")
-        .isLength({ min: 10, max: 10 })
-        .withMessage("Mobile number must be of 10 digits")
+        .withMessage("Verification token is required")
         .run(req),
     ]);
 
@@ -227,58 +163,184 @@ const register = async (req, res) => {
       });
     }
 
-    const { name, email, password, mobile_number } = req.body;
+    const { otp, verification_token } = req.body;
 
-    // Check if the email or mobile number already exists
-    const existingUser = await adminModel.findOne({ email });
-    if (existingUser) {
+    const adminDetail = await adminModel.findOne({ verification_token });
+
+    if (!adminDetail) {
       return res.json({
         status: 401,
-        message: "Email already exists",
+        message: "Invalid verification token",
       });
     }
 
-    // Hash the password before saving
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const currentDate = new Date();
 
-    // Create new admin user without OTP generation
-    const newUser = new adminModel({
-      name,
-      email,
-      password: hashedPassword,
-      mobile_number,
-    });
+    if (adminDetail.otp !== otp) {
+      return res.json({
+        status: 401,
+        message: "Invalid OTP",
+      });
+    }
 
-    await newUser.save();
+    if (
+      adminDetail.otp_expire_time &&
+      currentDate > adminDetail.otp_expire_time
+    ) {
+      return res.json({
+        status: 401,
+        message: "OTP has expired",
+      });
+    }
+
+    const token = generateToken(adminDetail);
+
+    adminDetail.token = token;
+    adminDetail.otp = null;
+    adminDetail.verification_token = null;
+    adminDetail.otp_expire_time = null;
+    adminDetail.last_Browser_finger_print =
+      req.headers["user-agent"] + req.connection.remoteAddress;
+    adminDetail.login_expire_time = new Date(
+      currentDate.getTime() + 24 * 60 * 60 * 1000
+    ); // 24 hours
+
+    await adminDetail.save();
 
     return res.json({
       status: 200,
-      message: "Registration successful",
+      message: "OTP verified successfully",
       data: {
-        id: newUser.id,
-        email: newUser.email,
-        mobile_number: newUser.mobile_number,
+        id: adminDetail._id,
+        name: adminDetail.name,
+        email: adminDetail.email,
+        profile_image: adminDetail.profile_image,
+        token: token,
       },
     });
   } catch (error) {
+    console.error("OTP Verification error:", error);
+    return res.json({
+      status: 401,
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const resend_Otp = async (req, res) => {
+  try {
+    // Validate request body
+    await Promise.all([
+      body("verification_token")
+        .notEmpty()
+        .withMessage("Verification token is required")
+        .run(req),
+    ]);
+
+    const validationErrorObj = validationResult(req);
+    if (!validationErrorObj.isEmpty()) {
+      return res.json({
+        status: 401,
+        message: validationErrorObj.errors[0].msg,
+      });
+    }
+
+    const { verification_token } = req.body;
+    const adminDetail = await adminModel.findOne({ verification_token });
+
+    if (!adminDetail) {
+      return res.json({
+        status: 401,
+        message: "Invalid verification token",
+      });
+    }
+
+    const currentDate = new Date();
+
+    // Generate a new OTP
+    const otp = await generateOTP();
+    adminDetail.otp = otp;
+    adminDetail.otp_expire_time = new Date(currentDate.getTime() + 15 * 60000); // OTP expires in 15 minutes
+
+    // Save the updated admin with the new OTP
+    await adminDetail.save();
+
+    // Send OTP via SMS (commented out as per request)
+    /*
+    const otpParams = {
+      country_code: adminDetail.country_code,
+      phone_number: adminDetail.mobile_number,
+      project_name: "course",
+      message_type: "send_otp",
+      variable: {
+        "#var1": adminDetail.otp,
+      },
+    };
+    try {
+      const otpResponse = await sendOTPObj.sendMobileOTP(otpParams);
+      if (otpResponse.data.status !== 200) {
+        return res.json({
+          status: 401,
+          message: 'Failed to send OTP. Please try again later.',
+        });
+      }
+    } catch (error) {
+      console.error("Error sending OTP:", error.message);
+      return res.json({
+        status: 500,
+        message: 'Failed to send OTP. Please try again later.',
+      });
+    }
+    */
+
+    return res.json({
+      status: 200,
+      message: "OTP has been resent successfully",
+      data: {
+        otp: adminDetail.otp, // When in production, comment out this line
+      },
+    });
+  } catch (error) {
+    console.error("Error in /admin/resendOTP:", error);
     return res.json({
       status: 500,
-      message: "Internal server error",
-      error: error.message,
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
 
 const getAdminDetails = async (req, res) => {
   try {
-    const admins = await adminModel.find();
-    res.json({
-      admins,
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const adminDetail = await adminModel.findById(decoded.id);
+
+    if (!adminDetail) {
+      return res.json({
+        status: 404,
+        message: "Admin not found",
+      });
+    }
+
+    return res.json({
+      status: 200,
+      message: "Admin data fetched successfully",
+      data: {
+        id: adminDetail._id,
+        name: adminDetail.name,
+        email: adminDetail.email,
+        profile_image: adminDetail.profile_image,
+      },
     });
   } catch (error) {
-    res.json({
+    console.error("Get Admin Data error:", error);
+    return res.json({
       status: 500,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
@@ -291,8 +353,8 @@ const getAdminById = async (req, res) => {
   //     const test = {}
   //     if (!admin) {
   //       return res.json({
-  //         status: 404, 
-  //         message: "Admin not found" 
+  //         status: 404,
+  //         message: "Admin not found"
   //       });
   //     }
   //     test._id = admin._id;
@@ -305,38 +367,50 @@ const getAdminById = async (req, res) => {
   //   } catch (error) {
   //     console.error("Error fetching admin:", error);
   //     res.json({
-  //       status: 500, 
-  //       message: "Server error" 
+  //       status: 500,
+  //       message: "Server error"
   //     });
   //   }
   // };
 
   try {
-    const adminId = req.params.id;
+    const token = req.headers.authorization.split(" ")[1];
+    const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+    const adminId = decodedToken.id;
 
     const admin = await adminModel.findById(adminId);
-    const test = {}
     if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
+      return res.json({
+        status: 404,
+        message: "Admin not found",
+      });
     }
 
-    test._id = admin._id;
-      test.email = admin.email;
-      test.name = admin.name;
-      test.profile_image = admin.profile_image;
-      test.mobile_number = admin.mobile_number;
+    const adminData = {
+      _id: admin._id,
+      email: admin.email,
+      name: admin.name,
+      profile_image: admin.profile_image,
+      mobile_number: admin.mobile_number,
+    };
 
-    res.status(200).json({ test });
+    res.json({
+      status: 200,
+      admin: adminData,
+    });
   } catch (error) {
     console.error("Error fetching admin details:", error);
-    res.status(500).json({ message: "Failed to fetch admin details" });
+    res.json({
+      status: 500,
+      message: "Failed to fetch admin details",
+    });
   }
 };
 
 module.exports = {
   login,
   verifyOTP,
-  register,
   getAdminDetails,
   getAdminById,
+  resend_Otp,
 };
