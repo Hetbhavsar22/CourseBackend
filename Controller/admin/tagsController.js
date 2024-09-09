@@ -1,6 +1,5 @@
 const Tag = require("../../Model/tagModel");
 
-// Add a new tag
 const addTag = async (req, res) => {
   try {
     const { name } = req.body;
@@ -20,7 +19,6 @@ const addTag = async (req, res) => {
   }
 };
 
-// Get all tags
 const getAllTags = async (req, res) => {
   try {
     const {
@@ -36,16 +34,16 @@ const getAllTags = async (req, res) => {
       query.name = new RegExp(search, "i");
     }
 
-    // Calculate the total number of courses that match the query
     const totalTag = await Tag.countDocuments(query);
 
     // Calculate the total number of pages
     // const pageCount = Math.ceil(totalTag / limit);
 
-    const tags = await Tag.find(query)
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
-      // .skip((page - 1) * limit)
-      // .limit(parseInt(limit));
+    const tags = await Tag.find(query).sort({
+      [sortBy]: order === "asc" ? 1 : -1,
+    });
+    // .skip((page - 1) * limit)
+    // .limit(parseInt(limit));
 
     res.json({
       status: 200,
@@ -63,7 +61,6 @@ const getAllTags = async (req, res) => {
   }
 };
 
-// Edit a tag
 const editTag = async (req, res) => {
   try {
     const { id } = req.params;
@@ -83,7 +80,6 @@ const editTag = async (req, res) => {
   }
 };
 
-// Delete a tag
 const deleteTag = async (req, res) => {
   try {
     const { id } = req.params;

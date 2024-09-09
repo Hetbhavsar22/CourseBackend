@@ -34,7 +34,11 @@ const {
     editOrder,
     deleteOrder,
     verifyPayment,
-    purchasedCourses,
+    getAllCoursePurchases,
+    deleteCoursePurchase,
+    initiateRefund,
+    coursePurchasetoggleButton,
+    getEnrolledCourses  
   } = require("../Controller/admin/order_idController");
 const { createVideo, getAllVideos, getVideosByCourse,
     // getVideo, getThumbnail, 
@@ -51,7 +55,7 @@ router.get("/get_admin", auth, getAdminById);
 
 
 //Course Route
-router.post("/:adminId/coursedetails", auth, createCourse);
+router.post("/coursedetails", auth, createCourse);
 router.get("/courseList", getAllCourses);
 router.get("/coursedetails/:id", getCourseById);
 router.post("/coursedetails/:courseId", updateCourse);
@@ -67,7 +71,11 @@ router.get("/getallOrder", getallorders);
 router.put("/editorder/:id", editOrder);
 router.delete("/deleteorder/:id", deleteOrder);
 router.post("/verify-payment", verifyPayment);
-router.get("/purchased-courses-byuser/:userid", purchasedCourses);
+router.get("/purchased-courses-byuser/:userId", getEnrolledCourses);
+router.get("/allPurchasedCourse", getAllCoursePurchases);
+router.delete("/deletetransaction/:id", deleteCoursePurchase);
+router.post("/refund", initiateRefund);
+router.patch("/:id/coursePurchasetoggleButton", coursePurchasetoggleButton);
 
 //Video Route
 router.post('/:courseId/upload', createVideo);

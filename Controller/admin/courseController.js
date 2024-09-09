@@ -1,4 +1,3 @@
-// const { body, validationResult } = require("express-validator");
 const mongoose = require("mongoose");
 const Course = require("../../Model/courseModel");
 const Video = require("../../Model/videoModel");
@@ -11,8 +10,8 @@ const path = require("path");
 const fs = require("fs");
 const { body, validationResult } = require("express-validator");
 const util = require("util");
+const jwt = require("jsonwebtoken");
 
-// Controller to create a new course
 const createCourse = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
@@ -24,7 +23,10 @@ const createCourse = async (req, res) => {
     }
 
     try {
-      // Validation
+      const token = req.headers.authorization.split(" ")[1];
+      const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+      const adminId = decodedToken.id;
+
       await Promise.all([
         body("cname")
           .notEmpty()
@@ -32,7 +34,6 @@ const createCourse = async (req, res) => {
           .isLength({ min: 1, max: 50 })
           .withMessage("Course name must be between 1 and 50 characters long")
           .custom((value) => {
-            // Check for special characters in course name
             const specialCharRegex = /[^a-zA-Z0-9\s]/;
             if (specialCharRegex.test(value)) {
               throw new Error(
@@ -87,16 +88,8 @@ const createCourse = async (req, res) => {
           .withMessage("Display Price is required")
           .isFloat()
           .withMessage("Display Price must be a number")
-          .custom((value, { req }) => {
-            if (value >= req.body.price) {
-              throw new Error(
-                "Display Price should be less than Actual Price."
-              );
-            }
-            return true;
-          })
           .run(req),
-          body("courseType")
+        body("courseType")
           .notEmpty()
           .withMessage("Course type is required")
           .run(req),
@@ -104,16 +97,6 @@ const createCourse = async (req, res) => {
           .optional()
           .isFloat({ min: 10, max: 100 })
           .withMessage("Percentage should be between 10 and 100.")
-          .run(req),
-        body("startTime")
-          .optional()
-          .isISO8601()
-          .withMessage("Start time should be a valid ISO8601 date string")
-          .run(req),
-        body("endTime")
-          .optional()
-          .isISO8601()
-          .withMessage("End time should be a valid ISO8601 date string")
           .run(req),
       ]);
 
@@ -140,7 +123,6 @@ const createCourse = async (req, res) => {
         startTime,
         endTime,
       } = req.body;
-      const { adminId } = req.params;
 
       const courseImage =
         req.files && req.files.courseImage
@@ -163,6 +145,9 @@ const createCourse = async (req, res) => {
         });
       }
 
+      const finalPrice = price === "0" ? "Free" : price;
+      const finalDprice = dprice === "0" ? "Free" : dprice;
+
       const course = new Course({
         adminId,
         cname,
@@ -172,8 +157,8 @@ const createCourse = async (req, res) => {
         shortDescription,
         longDescription,
         language,
-        price,
-        dprice,
+        price: finalPrice,
+        dprice: finalDprice,
         courseGst,
         courseType,
         percentage: courseType === "percentage" ? percentage : null,
@@ -212,13 +197,10 @@ const getAllCourses = async (req, res) => {
       query.cname = new RegExp(search, "i");
     }
 
-    // Calculate the total number of courses that match the query
     const totalCourses = await Course.countDocuments(query);
 
-    // Calculate the total number of pages
     const pageCount = Math.ceil(totalCourses / limit);
 
-    // Fetch the courses for the current page
     const courses = await Course.find(query)
       .sort({ [sortBy]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
@@ -238,10 +220,8 @@ const getAllCourses = async (req, res) => {
   }
 };
 
-// Controller to get a course by ID
 const getCourseById = async (req, res) => {
   try {
-    // Validation
     await param("id")
       .notEmpty()
       .withMessage("Course ID is required")
@@ -259,10 +239,8 @@ const getCourseById = async (req, res) => {
 
     const { id } = req.params;
 
-    // Find the course by ID
     const course = await Course.findById(id);
 
-    // Check if the course exists
     if (!course) {
       return res.json({
         status: 404,
@@ -270,7 +248,6 @@ const getCourseById = async (req, res) => {
       });
     }
 
-    // Send the course details as a response
     return res.json({
       status: 200,
       data: course,
@@ -294,31 +271,22 @@ const updateCourse = async (req, res) => {
       });
     }
 
-    console.log("Start2");
-
-    // Validation
     await Promise.all([
-      // params("courseId")
-      //   .notEmpty()
-      //   .withMessage("Course ID is required")
-      //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
-      //   .withMessage("Invalid Course ID")
-      //   .run(req),
-
       body("cname")
-          .notEmpty()
-          .withMessage("Course name is required")
-          .isLength({ min: 1, max: 50 })
-          .withMessage("Course name must be between 1 and 50 characters long")
-          .custom((value) => {
-            // Check for special characters in course name
-            const specialCharRegex = /[^a-zA-Z0-9\s]/;
-            if (specialCharRegex.test(value)) {
-              throw new Error("Course name should not contain special characters.");
-            }
-            return true;
-          })
-          .run(req),
+        .notEmpty()
+        .withMessage("Course name is required")
+        .isLength({ min: 1, max: 50 })
+        .withMessage("Course name must be between 1 and 50 characters long")
+        .custom((value) => {
+          const specialCharRegex = /[^a-zA-Z0-9\s]/;
+          if (specialCharRegex.test(value)) {
+            throw new Error(
+              "Course name should not contain special characters."
+            );
+          }
+          return true;
+        })
+        .run(req),
 
       body("totalVideo")
         .notEmpty()
@@ -354,12 +322,12 @@ const updateCourse = async (req, res) => {
         .withMessage("Invalid language")
         .run(req),
 
-        body("price")
+      body("price")
         .notEmpty()
         .withMessage("Price is required")
         .isFloat()
         .withMessage("Price must be a number")
-        .custom(value => {
+        .custom((value) => {
           if (value > 500000) {
             throw new Error("Price must be less than or equal to 5 lakhs.");
           }
@@ -371,15 +339,9 @@ const updateCourse = async (req, res) => {
         .withMessage("Display Price is required")
         .isFloat()
         .withMessage("Display Price must be a number")
-        .custom((value, { req }) => {
-          if (value >= req.body.price) {
-            throw new Error("Display Price should be less than Actual Price.");
-          }
-          return true;
-        })
         .run(req),
 
-        body("courseType")
+      body("courseType")
         .notEmpty()
         .withMessage("Course type is required")
         .run(req),
@@ -387,16 +349,6 @@ const updateCourse = async (req, res) => {
         .optional()
         .isFloat({ min: 10, max: 100 })
         .withMessage("Percentage should be between 10 and 100.")
-        .run(req),
-      body("startTime")
-        .optional()
-        .isISO8601()
-        .withMessage("Start time should be a valid ISO8601 date string")
-        .run(req),
-      body("endTime")
-        .optional()
-        .isISO8601()
-        .withMessage("End time should be a valid ISO8601 date string")
         .run(req),
     ]);
 
@@ -418,6 +370,7 @@ const updateCourse = async (req, res) => {
       language,
       price,
       dprice,
+      courseGst,
       courseType,
       percentage,
       startTime,
@@ -427,7 +380,6 @@ const updateCourse = async (req, res) => {
       req.files && req.files.courseImage ? req.files.courseImage[0].path : null;
 
     try {
-      // Find the course by ID
       const course = await Course.findById(courseId);
       if (!course) {
         return res.json({
@@ -436,7 +388,9 @@ const updateCourse = async (req, res) => {
         });
       }
 
-      // Update the course fields
+      const finalPrice = price === "0" ? "Free" : price;
+      const finalDprice = dprice === "0" ? "Free" : dprice;
+
       course.cname = cname || course.cname;
       course.totalVideo = totalVideo || course.totalVideo;
       course.courseImage = courseImage || course.courseImage;
@@ -444,8 +398,9 @@ const updateCourse = async (req, res) => {
       course.shortDescription = shortDescription || course.shortDescription;
       course.longDescription = longDescription || course.longDescription;
       course.language = language || course.language;
-      course.price = price || course.price;
-      course.dprice = dprice || course.dprice;
+      course.price = finalPrice || course.finalPrice;
+      course.dprice = finalDprice || course.finalDprice;
+      course.courseGst = courseGst || course.courseGst;
       course.courseType = courseType || course.courseType;
       if (courseType === "percentage") {
         course.percentage = percentage || course.percentage;
@@ -455,7 +410,6 @@ const updateCourse = async (req, res) => {
         course.endTime = endTime || course.endTime;
       }
 
-      // Save the updated course
       const updatedCourse = await course.save();
       return res.json({
         status: 200,
@@ -472,17 +426,14 @@ const updateCourse = async (req, res) => {
   });
 };
 
-// Controller to delete a course
 const unlinkFile = util.promisify(fs.unlink);
 
 const deleteCourse = async (req, res) => {
   try {
     const courseId = req.params.id;
 
-    // Find and delete all videos associated with the course
     const videos = await Video.find({ courseId });
     for (const video of videos) {
-      // Delete associated files if they exist
       if (video.thumbnail) {
         const thumbnailPath = path.join(
           __dirname,
@@ -515,11 +466,9 @@ const deleteCourse = async (req, res) => {
         }
       }
 
-      // Delete the video document
       await Video.findByIdAndDelete(video._id);
     }
 
-    // Now delete the course
     const deletedCourse = await Course.findByIdAndDelete(courseId);
     if (!deletedCourse) {
       return res.json({
@@ -528,11 +477,7 @@ const deleteCourse = async (req, res) => {
       });
     }
 
-    // Delete all orders related to this course
     await Order.deleteMany({ courseId });
-
-    // Delete all transaction related to this course
-    // await transaction.deleteMany({ courseId });
 
     res.json({
       status: 200,
@@ -548,7 +493,6 @@ const deleteCourse = async (req, res) => {
 };
 
 const courseCheckout = async (req, res) => {
-  // Validation
   await Promise.all([
     body("courseId")
       .notEmpty()
@@ -576,7 +520,6 @@ const courseCheckout = async (req, res) => {
   const { courseId, userId } = req.body;
 
   try {
-    // Find the course and user
     const course = await Course.findById(courseId);
     const user = await userModel.findById(userId);
 
@@ -594,7 +537,6 @@ const courseCheckout = async (req, res) => {
       });
     }
 
-    // Check if the course has a valid adminId
     if (!course.adminId) {
       return res.json({
         status: 400,
@@ -602,7 +544,6 @@ const courseCheckout = async (req, res) => {
       });
     }
 
-    // Check if the user is already enrolled in the course
     const existingEnrollment = await Enrollment.findOne({
       courseId: courseId,
       userId: userId,
@@ -615,7 +556,6 @@ const courseCheckout = async (req, res) => {
       });
     }
 
-    // Create a new enrollment record
     const EnrollCourse = new Enrollment({
       courseId: courseId,
       userId: userId,

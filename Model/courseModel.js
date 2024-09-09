@@ -1,3 +1,4 @@
+const { string } = require("joi");
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -36,10 +37,10 @@ const courseSchema = new Schema(
       type: String,
     },
     price: {
-      type: Number,
+      type: String,
     },
     dprice: {
-      type: Number,
+      type: String,
     },
     courseGst: {
       type: Number,

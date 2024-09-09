@@ -9,7 +9,7 @@ const enrollmentSchema = new Schema({
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "userModel",
+    ref: "userModel", 
     required: true,
   },
   enrolledAt: {

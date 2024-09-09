@@ -110,8 +110,7 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const timestamp = Date.now();
-    cb(null, `${timestamp}_${file.originalname}`);
+    cb(null, `${file.originalname}`);
   }
 });
 
@@ -161,6 +160,7 @@ const fileFilter = (req, file, cb) => {
       cb(new Error("Invalid file type for video"), false);
     }
   } else if (type === "document") {
+
     if (file.fieldname === "pdf" && file.mimetype === "application/pdf") {
       cb(null, true);
     } else if (file.fieldname === "doc" && file.mimetype === "application/msword") {

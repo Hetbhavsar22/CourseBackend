@@ -81,7 +81,10 @@ const login = async (req, res) => {
 
     const currentDate = new Date();
 
-    if (browserFingerPrint != adminDetail.last_Browser_finger_print) {
+    if (
+      currentDate > adminDetail.login_expire_time ||
+      browserFingerPrint != adminDetail.last_Browser_finger_print
+    ) {
       adminDetail.otp = await generateOTP();
       adminDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000);
       adminDetail.verification_token = await generateOtpVerificationToken();
@@ -113,7 +116,7 @@ const login = async (req, res) => {
         data: {
           verification_token: adminDetail.verification_token,
           is_otp_required: true,
-          otp: adminDetail.otp, //When project on production comment this line without forgot
+          otp: adminDetail.otp,
         },
       });
     } else {
@@ -203,7 +206,7 @@ const verifyOTP = async (req, res) => {
       req.headers["user-agent"] + req.connection.remoteAddress;
     adminDetail.login_expire_time = new Date(
       currentDate.getTime() + 24 * 60 * 60 * 1000
-    ); // 24 hours
+    );
 
     await adminDetail.save();
 
@@ -229,7 +232,6 @@ const verifyOTP = async (req, res) => {
 
 const resend_Otp = async (req, res) => {
   try {
-    // Validate request body
     await Promise.all([
       body("verification_token")
         .notEmpty()
@@ -257,12 +259,10 @@ const resend_Otp = async (req, res) => {
 
     const currentDate = new Date();
 
-    // Generate a new OTP
     const otp = await generateOTP();
     adminDetail.otp = otp;
     adminDetail.otp_expire_time = new Date(currentDate.getTime() + 15 * 60000); // OTP expires in 15 minutes
 
-    // Save the updated admin with the new OTP
     await adminDetail.save();
 
     // Send OTP via SMS (commented out as per request)
@@ -297,7 +297,7 @@ const resend_Otp = async (req, res) => {
       status: 200,
       message: "OTP has been resent successfully",
       data: {
-        otp: adminDetail.otp, // When in production, comment out this line
+        otp: adminDetail.otp,
       },
     });
   } catch (error) {
@@ -345,58 +345,29 @@ const getAdminDetails = async (req, res) => {
   }
 };
 
-// Controller to get a admin by ID
 const getAdminById = async (req, res) => {
-  //   try {
-  //     const adminId = req.params.id;
-  //     const admin = await adminModel.findById(adminId);
-  //     const test = {}
-  //     if (!admin) {
-  //       return res.json({
-  //         status: 404,
-  //         message: "Admin not found"
-  //       });
-  //     }
-  //     test._id = admin._id;
-  //     test.email = admin.email;
-  //     test.name = admin.name;
-  //     test.profile_image = admin.profile_image;
-  //     test.mobile_number = admin.mobile_number;
-  //     res.json({
-  //       status: 200, test});
-  //   } catch (error) {
-  //     console.error("Error fetching admin:", error);
-  //     res.json({
-  //       status: 500,
-  //       message: "Server error"
-  //     });
-  //   }
-  // };
-
   try {
     const token = req.headers.authorization.split(" ")[1];
     const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
     const adminId = decodedToken.id;
 
-    const admin = await adminModel.findById(adminId);
-    if (!admin) {
+    const adminDetail = await adminModel.findById(adminId);
+    if (!adminDetail) {
       return res.json({
         status: 404,
         message: "Admin not found",
       });
     }
 
-    const adminData = {
-      _id: admin._id,
-      email: admin.email,
-      name: admin.name,
-      profile_image: admin.profile_image,
-      mobile_number: admin.mobile_number,
-    };
-
     res.json({
       status: 200,
-      admin: adminData,
+      data: {
+        id: adminDetail._id,
+        name: adminDetail.name,
+        email: adminDetail.email,
+        profile_image: adminDetail.profile_image,
+        token: token,
+      },
     });
   } catch (error) {
     console.error("Error fetching admin details:", error);

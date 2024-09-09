@@ -23,7 +23,7 @@ const AdminSchema = new Schema(
     },
     mobile_number: {
       type: Number,
-      unique: true,
+      // unique: true,
     },
     profile_image: {
       type: String,

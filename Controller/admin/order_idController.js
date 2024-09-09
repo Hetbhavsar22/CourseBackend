@@ -6,36 +6,44 @@ const CoursePurchase = require("../../Model/coursePurchaseModel");
 const Enrollment = require("../../Model/enrollmentModel");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
-const { RAZORPAY_ID_KEY, RAZORPAY_SECRET_KEY } = process.env;
+require("dotenv").config();
 
 const instance = new Razorpay({
-  key_id: RAZORPAY_ID_KEY,
-  key_secret: RAZORPAY_SECRET_KEY,
+  key_id: "rzp_test_ijIfGspQLSfEhH",
+  key_secret: "2BchtClGW9UJJd6HmHpa898i",
 });
 
 const createOrder = async (req, res) => {
   try {
     const { courseId, userId, amount, currency } = req.body;
 
-    // Generate a short receipt ID
+    console.log("courseId:", courseId);
+    console.log("userId:", userId);
+    console.log("amount:", amount);
+    console.log("currency:", currency);
+
+    if (!courseId || !userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid input data" });
+    }
+
     const shortUserId = userId.slice(-6);
     const shortCourseId = courseId.slice(-6);
     const receipt = `recpt_${shortUserId}_${shortCourseId}_${Date.now()}`;
 
-    // Generate a unique secret key for this order
     const secretKey = crypto.randomBytes(32).toString("hex");
 
     const options = {
-      amount: amount * 100,
+      amount: amount,
       currency: currency || "INR",
       receipt: receipt,
     };
 
-    // Create order on Razorpay
     instance.orders.create(options, async (err, order) => {
       if (err) {
         console.error("Razorpay Order Error:", err);
-        return res.status(400).send({
+        return res.send({
           status: 400,
           success: false,
           msg: "Something went wrong!",
@@ -43,19 +51,18 @@ const createOrder = async (req, res) => {
         });
       }
 
-      // Create order in our database with the unique secret key
       const newOrder = new Order({
         courseId,
         userId,
-        amount,
+        amount: amount,
         currency,
         razorpayOrderId: order.id,
-        secretKey, // Save the unique secret key with the order
+        secretKey,
       });
 
       await newOrder.save();
 
-      res.status(200).send({
+      res.send({
         status: 200,
         success: true,
         msg: "Order Created",
@@ -65,8 +72,8 @@ const createOrder = async (req, res) => {
       });
     });
   } catch (error) {
-    console.error("Server Error:", error.message);
-    res.status(500).send({
+    console.error("Server Error:", error);
+    res.send({
       status: 500,
       success: false,
       msg: "Server Error",
@@ -79,11 +86,10 @@ const getOrderById = async (req, res) => {
     const { orderId } = req.params;
     console.log("Received orderId:", orderId);
 
-    // Attempt to find the order by its MongoDB _id
     const order = await Order.findById(orderId);
 
     if (!order) {
-      console.log("Order not found in database"); // Additional log
+      console.log("Order not found in database");
       return res.status(404).send({
         status: 404,
         success: false,
@@ -91,7 +97,7 @@ const getOrderById = async (req, res) => {
       });
     }
 
-    console.log("Order found:", order); // Additional log to check the order object
+    console.log("Order found:", order);
 
     res.status(200).send({
       status: 200,
@@ -117,7 +123,6 @@ const getOrderById = async (req, res) => {
   }
 };
 
-// Get all orders
 const getallorders = async (req, res) => {
   try {
     const {
@@ -129,14 +134,11 @@ const getallorders = async (req, res) => {
     } = req.query;
 
     const query = {};
-      if (search) {
-        query["$or"] = [
-          { "userId.name": new RegExp(search, "i") },
-          { "courseId.cname": new RegExp(search, "i") }
-        ];
-      }
     if (search) {
-      query.userName = new RegExp(search, "i");
+      query["$or"] = [
+        { "userId.name": new RegExp(search, "i") },
+        { "courseId.cname": new RegExp(search, "i") },
+      ];
     }
 
     const totalOrders = await Order.countDocuments(query);
@@ -177,7 +179,7 @@ const editOrder = async (req, res) => {
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { amount, currency, status, updatedAt: Date.now() },
-      { new: true } // Return the updated document
+      { new: true }
     );
 
     if (!updatedOrder) {
@@ -225,6 +227,14 @@ const deleteOrder = async (req, res) => {
   }
 };
 
+const razorpayInstance = new Razorpay({
+  key_id: "rzp_test_ijIfGspQLSfEhH",
+
+  key_secret: "2BchtClGW9UJJd6HmHpa898i",
+});
+
+const nodemailer = require("nodemailer");
+
 const verifyPayment = async (req, res) => {
   try {
     const {
@@ -233,43 +243,40 @@ const verifyPayment = async (req, res) => {
       razorpaySignature,
       customerDetails,
       courseId,
+      key_secret = "2BchtClGW9UJJd6HmHpa898i",
     } = req.body;
 
-    console.log("Received razorpayOrderId: ", razorpayOrderId);
-    console.log("Received razorpayPaymentId: ", razorpayPaymentId);
-    console.log("Received razorpaySignature: ", razorpaySignature);
-
-    // Validate Razorpay signature
-    if (!process.env.RAZORPAY_SECRET_KEY) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: "Razorpay key secret is not configured.",
-        });
+    if (!key_secret) {
+      return res.json({
+        status: 500,
+        success: false,
+        message: "Razorpay key secret is not configured.",
+      });
     }
 
-    const hmac = crypto.createHmac("sha256", process.env.RAZORPAY_SECRET_KEY);
-    hmac.update(razorpayOrderId + "|" + razorpayPaymentId);
+    const hmac = crypto.createHmac("sha256", key_secret);
+    const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
+    hmac.update(payload);
     const generatedSignature = hmac.digest("hex");
 
-    console.log("Generated Signature:", generatedSignature);
-
-    // if (generatedSignature !== razorpaySignature) {
-    //     console.log("Signature mismatch! Generated:", generatedSignature, " Provided:", razorpaySignature);
-    //     return res.status(400).json({ success: false, message: 'Invalid signature' });
-    // }
-
-    // Fetch course details
-    const course = await Course.findById(courseId);
-    const user = await userModel.findById(customerDetails.userId);
-    if (!course || !user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Course or User not found" });
+    if (generatedSignature !== razorpaySignature) {
+      return res.json({
+        status: 400,
+        success: false,
+        message: "Invalid signature",
+      });
     }
 
-    // Calculate GST based on the courseGst percentage
+    const course = await Course.findById(courseId);
+    const user = await userModel.findById(customerDetails.userId);
+
+    if (!course || !user) {
+      return res.status(404).json({
+        success: false,
+        message: "Course or User not found",
+      });
+    }
+
     const amountWithoutGst = customerDetails.amount;
     const gstPercentage = course.courseGst || 0;
     const totalGst = (amountWithoutGst * gstPercentage) / 100;
@@ -288,7 +295,23 @@ const verifyPayment = async (req, res) => {
 
     const totalPaidAmount = amountWithoutGst + totalGst;
 
-    // Create course purchase record
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+
+    const currentYearMonth = `${year}${month}`;
+    const invoicePrefix = `COS-${currentYearMonth}`;
+
+    // Count how many invoices have been created for this month
+    const invoiceCount = await CoursePurchase.countDocuments({
+      invoiceNumber: new RegExp(`^${invoicePrefix}`),
+    });
+
+    const invoiceNumber = `${invoicePrefix}${String(invoiceCount + 1).padStart(
+      2,
+      "0"
+    )}`;
+
     const coursePurchase = new CoursePurchase({
       courseId,
       userId: customerDetails.userId,
@@ -304,62 +327,282 @@ const verifyPayment = async (req, res) => {
       totalGst: isFromGujarat ? cgst + sgst : igst,
       totalPaidAmount,
       paymentMode: customerDetails.paymentMode,
-      invoiceNumber: "INV-" + Date.now(),
+      invoiceNumber,
+      cancelBillNumber: null,
     });
 
     await coursePurchase.save();
 
-    // Enroll the user in the course
     const enrollment = new Enrollment({
       courseId,
       userId: customerDetails.userId,
-      percentageCompleted: 0, // Starting with 0% completion
+      percentageCompleted: 0,
     });
     await enrollment.save();
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message:
-          "Payment verified, course purchased, and user enrolled successfully.",
-      });
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: "erhetbhavsar@gmail.com",
+        pass: "rmpeeebgdehsdfxj",
+      },
+    });
+
+    const mailOptions = {
+      from: "erhetbhavsar@gmail.com",
+      to: customerDetails.email,
+      subject: `🎉 Congratulations! Your Enrollment is Confirmed! Welcome to ${course.cname}!`,
+      text: `Dear ${customerDetails.name},
+    
+    We are absolutely thrilled to welcome you to Garbhsanskar Guru! 🌟
+    
+    Your recent purchase of the "${course.cname}" course has been successfully processed, and we’re delighted to have you as part of our learning community. Here’s what you need to know about your purchase and what to expect next:
+    
+    🔑 Enrollment Details:
+    - Course Name: ${course.cname}
+    - Purchase Date: ${customerDetails.transactionDate}
+    - Transaction ID: ${razorpayPaymentId}
+    - Total Amount Paid: ₹${totalPaidAmount}
+    - Invoice Number: ${invoiceNumber}
+    
+    📚 What Awaits You in "${course.cname}":
+    
+    Prepare yourself for a transformative journey! This course has been carefully crafted to provide you with the skills, knowledge, and insights that will take you to the next level. With expert instructors, immersive content, and hands-on exercises, you’re in for an educational experience like no other.
+    
+    ✨ Why You’re Going to Love This Course:
+    
+    1. Expert Guidance:  Learn from industry leaders and seasoned professionals who are passionate about sharing their expertise.
+    2. Comprehensive Content: From foundational concepts to advanced strategies, this course covers it all.
+    3. Interactive Learning: Engage with interactive modules, quizzes, and real-world projects that reinforce your learning.
+    4. Flexible Schedule: Learn at your own pace, on your own schedule, with 24/7 access to course materials.
+    5. Community Support: Join a vibrant community of learners and connect with like-minded individuals on the same journey.
+    
+    🚀 Next Steps:
+    
+    1. Access Your Course: You can start learning right away! Simply log in to your account on [Your Platform Link] and access your course under the “My Courses” section.
+    2. Get Ready to Learn: Make sure you have a comfortable learning environment, a notebook for taking notes, and a readiness to absorb all the valuable information coming your way.
+    3. Stay Connected: Don’t forget to join our community on [Social Media Links] where you can share your progress, ask questions, and stay updated with the latest news and resources.
+    
+    🎁 A Special Gift for You!
+    
+    As a token of our appreciation, we’re offering you an exclusive discount on your next course with us! Stay tuned for more details in your inbox.
+    
+    🔁 Need Assistance? We’re Here for You!
+    
+    If you have any questions, concerns, or just want to share your excitement, our support team is always here to help. Reach out to us at [Support Email] or [Support Phone Number], and we’ll be happy to assist you.
+    
+    Thank You for Choosing Us!
+    
+    At Garbhsanskar Guru, we are committed to your success. We believe that education is the most powerful tool you can use to achieve your dreams, and we are honored to be part of your journey. Your investment in learning is a step towards a brighter future, and we’re here to support you every step of the way.
+    
+    We can’t wait to see what you’ll achieve with the knowledge you’ll gain from "${course.cname}". Happy learning!
+    
+    Warm regards,
+    
+    [Your Full Name]
+    [Your Position]
+    Garbhsanskar Guru
+    [Company Contact Information]
+    `
+    };    
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({
+      status: 200,
+      success: true,
+      message:
+        "Payment verified, course purchased, and user enrolled successfully.",
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error during payment verification:", error);
+    res.json({
+      status: 500,
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-// router.get("/purchased-courses/:userId", async (req, res) => {
-  const purchasedCourses = async (req, res) => {
-    try {
-      const { userId } = req.params;
-  
-      // Ensure the userId is correctly formatted
-      const userObjectId = new mongoose.Types.ObjectId(userId);
-      console.log("User ObjectId:", userObjectId);
-  
-      // Find all purchases by the user
-      const purchases = await CoursePurchase.find({ userId: userObjectId }).populate('courseId');
-      console.log("Purchases found:", purchases);
-  
-      if (!purchases || purchases.length === 0) {
-        return res.status(404).json({ success: false, message: "No courses found for this user" });
-      }
-  
-      // Extract course details from purchases
-      const purchasedCourses = purchases.map(purchase => ({
-        courseId: purchase.courseId._id,
-        courseName: purchase.courseId.cname,
-        amountPaid: purchase.totalPaidAmount,
-        purchaseDate: purchase.transactionDate,
-      }));
-  
-      res.status(200).json({ success: true, courses: purchasedCourses });
-    } catch (error) {
-      console.error("Error:", error);
-      res.status(500).json({ success: false, message: "Server error", error: error.message });
+const initiateRefund = async (purchaseId) => {
+  try {
+    const purchase = await CoursePurchase.findById(purchaseId);
+
+    if (!purchase) {
+      throw new Error("Purchase not found");
     }
-  };
+
+    purchase.cancelBillNumber = `CNCL-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase()}`;
+
+    purchase.active = false;
+
+    const refund = await razorpay.payments.refund(purchase.transactionId, {
+      amount: purchase.totalPaidAmount * 100,
+      notes: {
+        cancelBillNumber: purchase.cancelBillNumber,
+      },
+    });
+
+    if (!refund) {
+      throw new Error("Failed to initiate refund with Razorpay");
+    }
+
+    await purchase.save();
+
+    return {
+      success: true,
+      message: "Refund initiated and cancel bill number generated.",
+      cancelBillNumber: purchase.cancelBillNumber,
+    };
+  } catch (error) {
+    console.error("Error initiating refund:", error);
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+const getAllCoursePurchases = async (req, res) => {
+  try {
+    const {
+      search,
+      page = 1,
+      limit = 4,
+      sortBy = "transactionDate",
+      order = "desc",
+    } = req.query;
+
+    const query = {};
+    // if (search) {
+    //   query["$or"] = [
+    //     { "userId.name": new RegExp(search, "i") },
+    //     { "courseId.cname": new RegExp(search, "i") },
+    //   ];
+    // }
+    if (search) {
+      query.customerName = new RegExp(search, "i");
+    }
+
+    const totalPayments = await CoursePurchase.countDocuments(query);
+    const pageCount = Math.ceil(totalPayments / limit);
+
+    const payments = await CoursePurchase.find(query)
+      .populate("courseId", "cname")
+      .populate("userId", "name email")
+      .sort({ transactionDate: -1 })
+      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .exec();
+
+    res.json({
+      payments: payments.map((payment) => ({
+        ...payment._doc,
+        userName: payment.userId.name,
+        courseName: payment.courseId.cname,
+      })),
+      page: parseInt(page),
+      pageCount,
+      totalPayments,
+    });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({
+      status: 500,
+      message: error.message,
+    });
+  }
+};
+
+const deleteCoursePurchase = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await CoursePurchase.findByIdAndDelete(id);
+    res.json({
+      status: 200,
+      message: "Transaction deleted successfully",
+    });
+  } catch (error) {
+    res.json({
+      status: 500,
+      message: "Error deleting transaction",
+      error: error.message,
+    });
+  }
+};
+
+const coursePurchasetoggleButton = async (req, res) => {
+  console.log(
+    `PATCH request received for course purchase ID: ${req.params.id}`
+  );
+  try {
+    const coursePurchase = await CoursePurchase.findById(req.params.id);
+    if (!coursePurchase) {
+      return res.json({
+        status: 404,
+        message: "Purchased course not found",
+      });
+    }
+    coursePurchase.active = !coursePurchase.active;
+    await coursePurchase.save();
+    res.json({
+      status: 200,
+      coursePurchase,
+    });
+  } catch (error) {
+    console.error("Error toggling Purchased course:", error);
+    res.json({
+      status: 500,
+      message: "Server error",
+    });
+  }
+};
+
+const getEnrolledCourses = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Validate the userId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        status: 400,
+        message: "Invalid user ID",
+      });
+    }
+
+    // Find all enrollments for the user
+    const enrollments = await Enrollment.find({ userId });
+
+    if (enrollments.length === 0) {
+      return res.status(404).json({
+        status: 404,
+        message: "No courses found for this user",
+      });
+    }
+
+    // Extract courseIds from the enrollments
+    const courseIds = enrollments.map(enrollment => enrollment.courseId);
+
+    // Fetch course details
+    const courses = await Course.find({ _id: { $in: courseIds } });
+
+    return res.status(200).json({
+      status: 200,
+      data: courses,
+    });
+  } catch (error) {
+    console.error("Error fetching enrolled courses:", error.message);
+    return res.status(500).json({
+      status: 500,
+      message: "Failed to fetch enrolled courses",
+    });
+  }
+};
+
 
 module.exports = {
   createOrder,
@@ -368,5 +611,9 @@ module.exports = {
   editOrder,
   deleteOrder,
   verifyPayment,
-  purchasedCourses,
+  getAllCoursePurchases,
+  coursePurchasetoggleButton,
+  deleteCoursePurchase,
+  initiateRefund,
+  getEnrolledCourses
 };

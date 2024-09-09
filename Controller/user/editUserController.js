@@ -1,12 +1,10 @@
-const userModel = require("../../Model/userModel"); // Adjust the path as needed
+const userModel = require("../../Model/userModel");
 
-// Edit User Details
 const editUser = async (req, res) => {
   const userId = req.body.editUserId;
   const { name, email, phoneNumber, enrolledCourse, active } = req.body;
 
   try {
-    // Find the user by ID and update with the new details
     const updatedUser = await userModel.findByIdAndUpdate(
       userId,
       { name, email, phoneNumber, enrolledCourse, active },
@@ -23,11 +21,9 @@ const editUser = async (req, res) => {
   }
 };
 
-// Delete User
 const deleteUser = async (req, res) => {
-  
   try {
-      const deletedUser = await userModel.findByIdAndDelete(req.params.id);
+    const deletedUser = await userModel.findByIdAndDelete(req.params.id);
 
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found" });

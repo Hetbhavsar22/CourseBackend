@@ -59,7 +59,7 @@ const videoSchema = new Schema(
       type: [String],
       required: true,
     },
-    typev: {
+    type: {
       type: String,
       enum: ['video', 'document'],
     },
@@ -76,9 +76,8 @@ const videoSchema = new Schema(
       default: Date.now,
     },
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "admin",
-      // required: true,
+      type: String,
+      ref: "Admin",
     },
     updatedBy: {
       type: Schema.Types.ObjectId,

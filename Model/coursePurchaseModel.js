@@ -5,7 +5,7 @@ const coursePurchaseSchema = new Schema(
   {
     courseId: {
       type: Schema.Types.ObjectId,
-      ref: "Course",
+      ref: "CourseList",
       required: true,
     },
     userId: {
@@ -31,7 +31,7 @@ const coursePurchaseSchema = new Schema(
     },
     mobileNumber: {
       type: Number,
-      unique: true,
+      // unique: true,
       match: [/^\d{10}$/, "Please enter a valid 10-digit mobile number"],
     },
     customerCity: {
@@ -73,15 +73,18 @@ const coursePurchaseSchema = new Schema(
       type: String,
       unique: true,
     },
-    // cancelBillNumber: {
+    // discountCode: {
     //   type: String,
-    //   unique: true,
-    //   require: false,
+    //   sparse: true,
     // },
-    discountCode: {
+    cancelBillNumber: {
       type: String,
-      sparse: true,
-    }
+      default: null,
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,

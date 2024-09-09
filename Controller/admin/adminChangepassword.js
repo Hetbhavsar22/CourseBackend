@@ -10,7 +10,6 @@ const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const authHeader = req.headers.authorization;
 
-  // Validate input fields
   if (!currentPassword || !newPassword) {
     return res.json({
       status: 400,
@@ -18,7 +17,6 @@ const changePassword = async (req, res) => {
     });
   }
 
-  // Validate authorization header
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.json({
       status: 401,
@@ -29,11 +27,9 @@ const changePassword = async (req, res) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    // Verify JWT token
     const decodedToken = jwt.verify(token, SECRET_KEY);
     const adminId = decodedToken.id;
 
-    // Find the admin by ID
     const existingAdmin = await adminModel.findById(adminId);
     if (!existingAdmin) {
       return res.json({
@@ -42,7 +38,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Compare the old password with the stored hashed password
     const isCurrentPasswordCorrect = await bcrypt.compare(
       currentPassword,
       existingAdmin.password
@@ -55,7 +50,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Validate new password
     if (newPassword.length < 6) {
       return res.json({
         status: 400,
@@ -63,10 +57,8 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Hash the new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update the admin's password
     existingAdmin.password = hashedNewPassword;
     await existingAdmin.save();
 
@@ -84,7 +76,6 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Update details function
 const updateDetails = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
@@ -96,7 +87,6 @@ const updateDetails = async (req, res) => {
       });
     }
 
-    // Validate authorization header
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -109,24 +99,19 @@ const updateDetails = async (req, res) => {
     const token = authHeader.split(" ")[1];
 
     try {
-      // Verify JWT token
       const decodedToken = jwt.verify(token, SECRET_KEY);
       const adminId = decodedToken.id;
 
-      // Find the admin by ID
-      const test = {}
-      const existingAdmin = await adminModel.findById(adminId);
-      if (!existingAdmin) {
+      const adminDetail = await adminModel.findById(adminId);
+      if (!adminDetail) {
         return res.json({
           status: 404,
           message: "Admin not found!",
         });
       }
 
-      // Extract fields from the request body
       const { name } = req.body;
 
-      // Validate input fields
       if (name && typeof name !== "string") {
         return res.json({
           status: 400,
@@ -134,18 +119,14 @@ const updateDetails = async (req, res) => {
         });
       }
 
-      // Update admin details
       if (name) {
-        existingAdmin.name = name;
-        test.name = name;
+        adminDetail.name = name;
       }
 
-      // Update profile image if provided
       if (req.files && req.files.profileImage && req.files.profileImage[0]) {
         const file = req.files.profileImage[0];
         if (file.mimetype.startsWith("image/")) {
-          existingAdmin.profile_image = `/profile_images/${file.filename}`;
-          test.profile_image = `/profile_images/${file.filename}`;
+          adminDetail.profile_image = `/profile_images/${file.filename}`;
         } else {
           return res.json({
             status: 400,
@@ -153,16 +134,19 @@ const updateDetails = async (req, res) => {
           });
         }
       }
-      test._id = existingAdmin._id;
-      test.email = existingAdmin.email;
-      // Save the updated admin details
-      await existingAdmin.save();
+
+      await adminDetail.save();
 
       res.json({
         status: 200,
         message: "Details updated successfully!",
-        // admin: existingAdmin,
-        admin : test
+        data: {
+          id: adminDetail._id,
+          name: adminDetail.name,
+          email: adminDetail.email,
+          profile_image: adminDetail.profile_image,
+          token: token,
+        },
       });
     } catch (error) {
       console.error("Error updating details:", error.message);

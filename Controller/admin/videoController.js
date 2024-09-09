@@ -4,15 +4,13 @@ const Course = require("../../Model/courseModel");
 const adminModel = require("../../Model/adminModel");
 const path = require("path");
 const fs = require("fs");
-const ffmpeg = require('fluent-ffmpeg');
-ffmpeg.setFfmpegPath('\ffmpeg\bin'); 
-// Replace with the path to your ffmpeg binary
-const util = require("util");
+const ffmpeg = require("fluent-ffmpeg");
 const { body, validationResult } = require("express-validator");
-const { Console } = require("console");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const VideoProgress = require("../../Model/VideoProgress");
 
 const createVideo = (req, res) => {
-  
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
@@ -37,7 +35,7 @@ const createVideo = (req, res) => {
           .isLength({ min: 1, max: 500 })
           .withMessage("Description must be between 1 and 500 characters long")
           .run(req),
-        body("typev")
+        body("type")
           .notEmpty()
           .withMessage("Type is required")
           .isIn(["video", "document"])
@@ -47,10 +45,13 @@ const createVideo = (req, res) => {
           .notEmpty()
           .withMessage("Course ID is required")
           .run(req),
-        body("createdBy")
-          .notEmpty()
-          .withMessage("CreatedBy is required")
-          .run(req),
+        // body("createdBy")
+        //   .optional()
+        //   .notEmpty()
+        //   .withMessage("CreatedBy is required")
+        //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
+        //   .withMessage("Invalid CreatedBy ID")
+        //   .run(req),
       ]);
 
       const validationErrorObj = validationResult(req);
@@ -61,12 +62,11 @@ const createVideo = (req, res) => {
         });
       }
 
-      const { title, description, tags, dvideo, typev, courseId, createdBy } =
-        req.body;
+      const { title, description, tags, dvideo, type, courseId } = req.body;
 
       console.log("request Body: ", req.body);
 
-      if (!createdBy || !courseId || !typev) {
+      if (!courseId || !type) {
         return res.status(400).json({ error: "Required fields are missing" });
       }
 
@@ -82,23 +82,35 @@ const createVideo = (req, res) => {
         });
       }
 
+      const token = req.headers.authorization.split(" ")[1];
+      const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+      const adminId = decodedToken.id;
+
+      const admin = await adminModel.findById(adminId);
+      if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
+        return res.json({
+          status: 401,
+          message: "Admin not found",
+        });
+      }
+
       const newMedia = {
-        adminId: createdBy,
+        createdBy: admin.name,
         courseId,
         title,
         description,
         tags,
-        typev,
+        type,
         active: true,
       };
 
-      if (typev === "document") {
+      if (type === "document") {
         newMedia.pdf = req.files["pdf"] ? req.files["pdf"][0].path : undefined;
         newMedia.ppt = req.files["ppt"] ? req.files["ppt"][0].path : undefined;
         newMedia.doc = req.files["doc"] ? req.files["doc"][0].path : undefined;
       }
 
-      if (typev === "video") {
+      if (type === "video") {
         newMedia.dvideo = demoStatus;
         newMedia.thumbnail = req.files["thumbnail"]
           ? req.files["thumbnail"][0].path
@@ -139,8 +151,8 @@ const createVideo = (req, res) => {
               .run();
           });
 
-          const manifestUrl = `${process.env.BASE_URL}/videos/${courseId}/manifest.mpd`;
-          newMedia.manifestUrl = manifestUrl;
+          const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/manifest.mpd`;
+          newMedia.videofile = manifestUrl;
         }
       }
 
@@ -295,7 +307,7 @@ const updateVideoDetails = (req, res) => {
         .isLength({ min: 1, max: 500 })
         .withMessage("Description must be between 1 and 500 characters long")
         .run(req),
-      body("typev")
+      body("type")
         .optional()
         .notEmpty()
         .withMessage("Type is required")
@@ -309,13 +321,13 @@ const updateVideoDetails = (req, res) => {
         .custom((value) => mongoose.Types.ObjectId.isValid(value))
         .withMessage("Invalid Course ID")
         .run(req),
-      body("createdBy")
-        .optional()
-        .notEmpty()
-        .withMessage("CreatedBy is required")
-        .custom((value) => mongoose.Types.ObjectId.isValid(value))
-        .withMessage("Invalid CreatedBy ID")
-        .run(req),
+      // body("createdBy")
+      //   .optional()
+      //   .notEmpty()
+      //   .withMessage("CreatedBy is required")
+      //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
+      //   .withMessage("Invalid CreatedBy ID")
+      //   .run(req),
     ]);
 
     // Extract video ID from the request parameters
@@ -328,10 +340,10 @@ const updateVideoDetails = (req, res) => {
     }
 
     // Extract updated fields from the request body
-    const { title, description, dvideo, tags, typev, courseId, createdBy } =
+    const { title, description, dvideo, tags, type, courseId, createdBy } =
       req.body;
 
-    if (!createdBy || !courseId || !typev) {
+    if (!createdBy || !courseId || !type) {
       return res.json({
         status: 400,
         message: "Required fields are missing",
@@ -356,12 +368,12 @@ const updateVideoDetails = (req, res) => {
       video.description = description || video.description;
       video.dvideo = demoStatus || video.dvideo;
       video.tags = tags || video.tags;
-      video.typev = typev || video.typev;
+      video.type = type || video.type;
       video.courseId = courseId || video.courseId;
       video.adminId = createdBy || video.adminId;
 
-      // Handle file updates based on typev
-      if (typev === "document") {
+      // Handle file updates based on type
+      if (type === "document") {
         video.dvideo = null;
         video.thumbnail = null;
         video.videofile = null;
@@ -383,21 +395,59 @@ const updateVideoDetails = (req, res) => {
         }
       }
 
-      if (typev === "video") {
+      if (type === "video") {
         video.pdf = null;
         video.ppt = null;
         video.doc = null;
         video.dvideo = demoStatus;
+
         if (req.files["thumbnail"]) {
           video.thumbnail = req.files["thumbnail"][0].path;
         } else {
-          return re.json({
+          return res.json({
             status: 400,
             message: "Video type requires a thumbnail file",
           });
         }
+
         if (req.files["videofile"]) {
           video.videofile = req.files["videofile"][0].path;
+
+          // Generate DASH manifest using FFmpeg
+          if (video.videofile) {
+            const videoFilePath = video.videofile;
+            const outputDir = path.join(
+              __dirname,
+              "../../public/videos",
+              courseId
+            );
+
+            // Ensure output directory exists
+            if (!fs.existsSync(outputDir)) {
+              fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            const manifestPath = path.join(outputDir, "manifest.mpd");
+
+            await new Promise((resolve, reject) => {
+              ffmpeg(videoFilePath)
+                .output(manifestPath)
+                .outputOptions([
+                  "-map 0",
+                  "-use_timeline 1",
+                  "-use_template 1",
+                  "-init_seg_name init_$RepresentationID$.mp4",
+                  "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
+                  "-f dash",
+                ])
+                .on("end", resolve)
+                .on("error", reject)
+                .run();
+            });
+
+            const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/manifest.mpd`;
+            video.videofile = manifestUrl;
+          }
         } else {
           return res.json({
             status: 400,
@@ -426,8 +476,6 @@ const updateVideoDetails = (req, res) => {
   });
 };
 
-// Convert fs.unlink to a promise-based function
-const unlinkFile = util.promisify(fs.unlink);
 const deleteVideo = async (req, res) => {
   const videoId = req.params.id;
 
@@ -439,7 +487,6 @@ const deleteVideo = async (req, res) => {
   }
 
   try {
-    // Find the video document by ID
     const video = await Video.findById(videoId);
     if (!video) {
       return res.json({
@@ -448,26 +495,6 @@ const deleteVideo = async (req, res) => {
       });
     }
 
-    // Delete associated files if they exist
-    if (video.thumbnail) {
-      const thumbnailPath = path.join(
-        __dirname,
-        "../public/thumbnails",
-        video.thumbnail
-      );
-      await unlinkFile(thumbnailPath);
-    }
-
-    if (video.videofile) {
-      const videoPath = path.join(
-        __dirname,
-        "../public/videos",
-        video.videofile
-      );
-      await unlinkFile(videoPath);
-    }
-
-    // Delete the video document
     await Video.findByIdAndDelete(videoId);
 
     res.json({ message: "Video deleted successfully" });
@@ -481,7 +508,7 @@ const deleteVideo = async (req, res) => {
 };
 
 const updateVideoOrder = async (req, res) => {
-  const { videos } = req.body; // Array with updated order
+  const { videos } = req.body;
 
   try {
     for (const video of videos) {
@@ -525,6 +552,68 @@ const videotoggleButton = async (req, res) => {
   }
 };
 
+const updateVideoProgress = async (req, res) => {
+  try {
+    const { userId, videoId, courseId, progress } = req.body;
+
+    // Validate the inputs
+    if (!userId || !videoId || !courseId || typeof progress !== "number") {
+      return res.status(400).json({
+        status: 400,
+        message: "Invalid input data",
+      });
+    }
+
+    // Check if progress is within 0-100
+    if (progress < 0 || progress > 100) {
+      return res.status(400).json({
+        status: 400,
+        message: "Progress must be between 0 and 100",
+      });
+    }
+
+    // Find or create a VideoProgress entry
+    let videoProgress = await VideoProgress.findOne({ userId, videoId });
+
+    if (videoProgress) {
+      if (progress > videoProgress.progress) {
+        // Update the existing progress
+        videoProgress.progress = progress;
+        videoProgress.completed = progress === 100;
+        videoProgress.updatedAt = Date.now();
+        await videoProgress.save();
+      }
+      else{
+        return res.status(200).json({
+          status: 401,
+          message: "Progress should be greater than cureent video progress.",
+        });
+      }
+    } else {
+      // Create a new progress entry
+      videoProgress = new VideoProgress({
+        userId,
+        videoId,
+        courseId,
+        progress,
+        completed: progress === 100,
+      });
+      await videoProgress.save();
+    }
+
+    return res.status(200).json({
+      status: 200,
+      message: "Video progress updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating video progress:", error.message);
+    return res.status(500).json({
+      status: 500,
+      message: "Failed to update video progress",
+    });
+  }
+};
+
 module.exports = {
   createVideo,
   getAllVideos,
@@ -533,4 +622,5 @@ module.exports = {
   deleteVideo,
   updateVideoOrder,
   videotoggleButton,
+  updateVideoProgress,
 };

@@ -5,6 +5,7 @@ const { editUser, deleteUser } = require("../Controller/user/editUserController"
 const userModel = require('../Model/userModel')
 const { validateRequest } = require('../middleware/validationMiddleware');
 const { payment } = require('../Controller/user/RazorpayController');
+const { updateVideoProgress } = require('../Controller/admin/videoController');
 // const { changePassword, updateDetails } = require('../Controller/adminChangepassword');
 const router = express.Router();
 
@@ -40,5 +41,8 @@ router.patch('/:id/toggle', async (req, res) => {
     // Your course purchase logic here...
     res.status(200).json({ message: 'Course purchased successfully.' });
   });
+
+  // video progress
+  router.post("/video-progress", updateVideoProgress);
 
 module.exports = router;
