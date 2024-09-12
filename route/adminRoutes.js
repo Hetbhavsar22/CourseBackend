@@ -83,7 +83,7 @@ router.get('/videodetails', auth, getAllVideos);
 router.get("/courseWiseVideo", auth, getVideosByCourse);
 router.post('/editvideodetails/:id', auth, updateVideoDetails);
 router.delete('/videodetails/:id', auth, deleteVideo);
-router.post('/updateVideoOrder', auth, updateVideoOrder);
+router.put('/updateVideoOrder', updateVideoOrder);
 router.patch('/:id/videotoggleButton', videotoggleButton);
 
 //Tags Route

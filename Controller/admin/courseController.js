@@ -58,14 +58,14 @@ const createCourse = async (req, res) => {
         body("shortDescription")
           .notEmpty()
           .withMessage("Short description is required")
-          .isLength({ min: 1, max: 100 })
-          .withMessage("Description must be between 1 and 100 characters long")
+          // .isLength({ min: 1, max: 100 })
+          // .withMessage("Description must be between 1 and 100 characters long")
           .run(req),
         body("longDescription")
           .notEmpty()
           .withMessage("Long description is required")
-          .isLength({ min: 1, max: 500 })
-          .withMessage("Description must be between 1 and 500 characters long")
+          // .isLength({ min: 1, max: 500 })
+          // .withMessage("Description must be between 1 and 500 characters long")
           .run(req),
         body("language")
           .notEmpty()

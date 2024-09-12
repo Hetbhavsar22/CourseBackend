@@ -2,12 +2,12 @@ const userModel = require("../../Model/userModel");
 
 const editUser = async (req, res) => {
   const userId = req.body.editUserId;
-  const { name, email, phoneNumber, enrolledCourse, active } = req.body;
+  const { name, email, phoneNumber, active } = req.body;
 
   try {
     const updatedUser = await userModel.findByIdAndUpdate(
       userId,
-      { name, email, phoneNumber, enrolledCourse, active },
+      { name, email, phoneNumber, active },
       { new: true, runValidators: true }
     );
 

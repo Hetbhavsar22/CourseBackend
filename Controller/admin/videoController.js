@@ -178,31 +178,22 @@ const createVideo = (req, res) => {
 // Controller to get all videos
 const getAllVideos = async (req, res) => {
   try {
-    const {
-      search,
-      page = 1,
-      limit = 4,
-      sortBy = "title",
-      order = "asc",
-    } = req.query;
+    const { search, page = 1, limit = 4, sortBy = "createdAt", order = "desc" } = req.query;
+
     const query = {};
     if (search) {
       query.title = new RegExp(search, "i");
     }
 
-    // Calculate the total number of courses that match the query
     const totalVideo = await Video.countDocuments(query);
-
-    // Calculate the total number of pages
     const pageCount = Math.ceil(totalVideo / limit);
 
-    // Fetch the videos for the current page
+    // Sorting first by 'order', then by 'createdAt' if order is the same
     const videos = await Video.find(query)
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
+      .sort({ [sortBy]: order === "asc" ? 1 : -1 }) 
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-    // Fetch course details for each video
     const videoData = await Promise.all(
       videos.map(async (video) => {
         const course = await Course.findById(video.courseId);
@@ -233,6 +224,8 @@ const getAllVideos = async (req, res) => {
     });
   }
 };
+
+
 
 const getVideosByCourse = async (req, res) => {
   // Validation for request body
@@ -340,10 +333,10 @@ const updateVideoDetails = (req, res) => {
     }
 
     // Extract updated fields from the request body
-    const { title, description, dvideo, tags, type, courseId, createdBy } =
+    const { title, description, dvideo, tags, type, courseId } =
       req.body;
 
-    if (!createdBy || !courseId || !type) {
+    if (!courseId || !type) {
       return res.json({
         status: 400,
         message: "Required fields are missing",
@@ -363,6 +356,18 @@ const updateVideoDetails = (req, res) => {
       const demoStatus =
         dvideo === "true" ? "Use as a Demo Video" : "No demo video";
 
+        const token = req.headers.authorization.split(" ")[1];
+        const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+        const adminId = decodedToken.id;
+        const admin = await adminModel.findById(adminId);
+      if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
+        return res.json({
+          status: 401,
+          message: "Admin not found",
+        });
+      }
+        const createdBy= admin.name;
+
       // Update the video document with new data
       video.title = title || video.title;
       video.description = description || video.description;
@@ -370,7 +375,7 @@ const updateVideoDetails = (req, res) => {
       video.tags = tags || video.tags;
       video.type = type || video.type;
       video.courseId = courseId || video.courseId;
-      video.adminId = createdBy || video.adminId;
+      video.createdBy = createdBy || video.createdBy;
 
       // Handle file updates based on type
       if (type === "document") {
@@ -510,19 +515,27 @@ const deleteVideo = async (req, res) => {
 const updateVideoOrder = async (req, res) => {
   const { videos } = req.body;
 
+  if (!Array.isArray(videos)) {
+    return res.status(400).json({ status: 400, message: "Invalid data format. 'videos' should be an array." });
+  }
+
   try {
+    // Loop through each video and update its order
     for (const video of videos) {
       await Video.updateOne(
         { _id: video._id },
         { $set: { order: video.order } }
       );
     }
-    res.send({ status: 200 }, "Video order updated successfully");
+    res.status(200).json({ status: 200, message: "Video order updated successfully" });
   } catch (error) {
-    console.error(error);
-    res.send({ status: 500 }, "Error updating video order");
+    console.error("Error updating video order:", error);
+    res.status(500).json({ status: 500, message: "Error updating video order" });
   }
 };
+
+
+
 
 const videotoggleButton = async (req, res) => {
   console.log(`PATCH request received for video ID: ${req.params.id}`);

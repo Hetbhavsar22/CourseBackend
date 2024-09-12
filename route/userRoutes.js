@@ -1,17 +1,19 @@
 const multer = require('multer');
 const express = require('express');
-const { login, register, getAllUser } = require('../Controller/user/userLoginController');
+const { login, verifyOTP, register, getAllUser } = require('../Controller/user/userLoginController');
 const { editUser, deleteUser } = require("../Controller/user/editUserController");
 const userModel = require('../Model/userModel')
 const { validateRequest } = require('../middleware/validationMiddleware');
-const { payment } = require('../Controller/user/RazorpayController');
 const { updateVideoProgress } = require('../Controller/admin/videoController');
+const { getPurchasedCourseDetails } = require('../Controller/user/purchasedCourseController');
+const authenticate = require('../middleware/userAuth');
 // const { changePassword, updateDetails } = require('../Controller/adminChangepassword');
 const router = express.Router();
 
 const upload = multer();
 
 router.post('/login', login);
+router.post('/verify-otp', verifyOTP);
 router.post('/register', register);
 router.get('/userList', getAllUser);
 router.put("/editUser", upload.none(), editUser);
@@ -44,5 +46,8 @@ router.patch('/:id/toggle', async (req, res) => {
 
   // video progress
   router.post("/video-progress", updateVideoProgress);
+  router.get('/purchased-course/:courseId', 
+    authenticate, 
+    getPurchasedCourseDetails);
 
 module.exports = router;

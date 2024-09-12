@@ -10,18 +10,45 @@ const UserSchema = new Schema(
     },
 
     email: {
-      type: String,
+      type: String
     },
+
+    country_code: {
+      type: Number,
+    },
+
+    // city: {
+    //   type: String,
+    // },
 
     phoneNumber: {
       type: Number,
     },
 
+    // profile_image: {
+    //   type: String,
+    //   default: "/images/default-avatar.jpg",
+    // },
+
     otp: {
       type: String,
     },
 
-    enrolledCourse: {
+    otp_expire_time: {
+      type: Date,
+      default: null,
+    },
+
+    last_Browser_finger_print: {
+      type: String,
+    },
+
+    login_expire_time: {
+      type: Number,
+      default: null,
+    },
+    
+    verification_token: {
       type: String,
     },
 

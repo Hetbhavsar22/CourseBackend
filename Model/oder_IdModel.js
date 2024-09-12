@@ -26,11 +26,11 @@ const orderSchema = new Schema(
       required: true,
       unique: true,
     },
-    status: {
-      type: String,
-      enum: ["created", "paid", "failed"],
-      default: "created",
-    },
+    // status: {
+    //   type: String,
+    //   enum: ["created", "paid", "failed"],
+    //   default: "created",
+    // },
     createdAt: {
       type: Date,
       default: Date.now,

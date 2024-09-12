@@ -77,11 +77,9 @@ const videoSchema = new Schema(
     },
     createdBy: {
       type: String,
-      ref: "Admin",
     },
     updatedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "admin",
+      type: String,
     },
   },
   { timestamps: true }

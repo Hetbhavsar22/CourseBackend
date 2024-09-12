@@ -81,10 +81,6 @@ const coursePurchaseSchema = new Schema(
       type: String,
       default: null,
     },
-    active: {
-      type: Boolean,
-      default: true,
-    },
   },
   {
     timestamps: true,
