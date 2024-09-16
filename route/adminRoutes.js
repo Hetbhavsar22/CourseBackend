@@ -80,7 +80,7 @@ router.patch("/:id/coursePurchasetoggleButton", coursePurchasetoggleButton);
 //Video Route
 router.post('/:courseId/upload', createVideo);
 router.get('/videodetails', auth, getAllVideos);
-router.get("/courseWiseVideo", auth, getVideosByCourse);
+router.get("/courseWiseVideo/:courseId", getVideosByCourse);
 router.post('/editvideodetails/:id', auth, updateVideoDetails);
 router.delete('/videodetails/:id', auth, deleteVideo);
 router.put('/updateVideoOrder', updateVideoOrder);

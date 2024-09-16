@@ -2,13 +2,12 @@ const Course = require('../../Model/courseModel');
 const Video = require('../../Model/videoModel');
 const Enrollment = require('../../Model/enrollmentModel');
 const User = require('../../Model/userModel');
+const userModel = require('../../Model/userModel');
 
 const getPurchasedCourseDetails = async (req, res) => {
     try {
-      const userId = req.user._id; // Assuming user ID is attached to req.user after authentication
-      const { courseId } = req.params;
-  
-      console.log("Course ID:", courseId);  // Log the courseId to verify
+      // const userId = req.user._id; // Assuming user ID is attached to req.user after authentication
+      const { userId, courseId } = req.params;
   
       // Check if the user is enrolled in the course
       const enrollment = await Enrollment.findOne({ userId, courseId });
@@ -20,6 +19,19 @@ const getPurchasedCourseDetails = async (req, res) => {
       const course = await Course.findById(courseId);
       if (!course) {
         return res.status(404).json({ message: 'Course not found.' });
+      }
+
+      const user = await userModel.findById(courseId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID are required.' });
+      }
+
+      if (!courseId) {
+        return res.status(400).json({ message: 'Course ID are required.' });
       }
   
       // Fetch all videos and documents associated with the course

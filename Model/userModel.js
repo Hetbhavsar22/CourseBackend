@@ -5,8 +5,6 @@ const UserSchema = new Schema(
   {
     name: {
       type: String,
-      require: true,
-      unique: [true, "Name already exists in the database"],
     },
 
     email: {
@@ -60,6 +58,10 @@ const UserSchema = new Schema(
     createdAt: {
       type: Date,
       default: Date.now,
+    },
+    sequence: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true }

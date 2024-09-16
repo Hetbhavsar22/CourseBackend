@@ -9,7 +9,7 @@ const videoSchema = new Schema(
     },
     courseId: {
       type: Schema.Types.ObjectId,
-      ref: "Course",
+      ref: "CourseList",
       required: true,
     },
     title: {
@@ -80,6 +80,7 @@ const videoSchema = new Schema(
     },
     updatedBy: {
       type: String,
+      ref: 'admin'
     },
   },
   { timestamps: true }

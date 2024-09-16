@@ -25,8 +25,8 @@ const getAllTags = async (req, res) => {
       search,
       // page = 1,
       // limit = 4,
-      sortBy = "name",
-      order = "asc",
+      sortBy = "createdAt",
+      order = "desc",
     } = req.query;
 
     const query = {};

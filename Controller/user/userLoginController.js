@@ -276,8 +276,8 @@ const getAllUser = async (req, res) => {
       search,
       page = 1,
       limit = 4,
-      sortBy = "name",
-      order = "asc",
+      sortBy = "createdAt",
+      order = "desc",
     } = req.query;
 
     const query = {};
@@ -304,7 +304,10 @@ const getAllUser = async (req, res) => {
       totalUser,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.json({
+      status: 500, 
+      message: error.message 
+    });
   }
 };
 

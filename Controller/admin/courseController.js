@@ -426,66 +426,182 @@ const updateCourse = async (req, res) => {
   });
 };
 
+// const unlinkFile = util.promisify(fs.unlink);
+
+// const deleteCourse = async (req, res) => {
+//   try {
+//     const courseId = req.params.id;
+
+//     const videos = await Video.find({ courseId });
+//     for (const video of videos) {
+//       if (video.thumbnail) {
+//         const thumbnailPath = path.join(
+//           __dirname,
+//           "../public/thumbnails",
+//           video.thumbnail
+//         );
+//         try {
+//           await unlinkFile(thumbnailPath);
+//         } catch (err) {
+//           console.error(
+//             `Failed to delete thumbnail at ${thumbnailPath}:`,
+//             err.message
+//           );
+//         }
+//       }
+
+//       if (video.videofile) {
+//         const videoPath = path.join(
+//           __dirname,
+//           "../public/videos",
+//           video.videofile
+//         );
+//         try {
+//           await unlinkFile(videoPath);
+//         } catch (err) {
+//           console.error(
+//             `Failed to delete video file at ${videoPath}:`,
+//             err.message
+//           );
+//         }
+//       }
+
+//       await Video.findByIdAndDelete(video._id);
+//     }
+
+//     const deletedCourse = await Course.findByIdAndDelete(courseId);
+//     if (!deletedCourse) {
+//       return res.json({
+//         status: 404,
+//         error: "Course not found",
+//       });
+//     }
+
+//     await Order.deleteMany({ courseId });
+
+//     res.json({
+//       status: 200,
+//       message: "Course and associated videos deleted successfully",
+//     });
+//   } catch (error) {
+//     console.error("Error deleting course:", error);
+//     res.json({
+//       status: 500,
+//       error: "Failed to delete course",
+//     });
+//   }
+// };
+
 const unlinkFile = util.promisify(fs.unlink);
+const rmdir = util.promisify(fs.rmdir); // For deleting folders
+const fsPromises = fs.promises;
 
 const deleteCourse = async (req, res) => {
   try {
     const courseId = req.params.id;
 
+    // Find all videos associated with the course
     const videos = await Video.find({ courseId });
+    const basePath = path.join(__dirname, "../../public");
+
     for (const video of videos) {
+      // Delete the thumbnail if it exists
       if (video.thumbnail) {
-        const thumbnailPath = path.join(
-          __dirname,
-          "../public/thumbnails",
-          video.thumbnail
-        );
-        try {
+        const thumbnailPath = path.join(__dirname, "../../", video.thumbnail);
+        if (fs.existsSync(thumbnailPath)) {
           await unlinkFile(thumbnailPath);
-        } catch (err) {
-          console.error(
-            `Failed to delete thumbnail at ${thumbnailPath}:`,
-            err.message
-          );
+          console.log(`Thumbnail deleted: ${thumbnailPath}`);
+        } else {
+          console.log(`Thumbnail not found at path: ${thumbnailPath}`);
         }
       }
 
+      // Delete the video file if it exists
       if (video.videofile) {
+        const videoUrl = new URL(video.videofile);
         const videoPath = path.join(
           __dirname,
-          "../public/videos",
-          video.videofile
+          "../../public",
+          videoUrl.pathname.replace("/public/", "")
         );
-        try {
+        if (fs.existsSync(videoPath)) {
           await unlinkFile(videoPath);
-        } catch (err) {
-          console.error(
-            `Failed to delete video file at ${videoPath}:`,
-            err.message
-          );
+          console.log(`Video file deleted: ${videoPath}`);
+        } else {
+          console.log(`Video file not found at path: ${videoPath}`);
         }
       }
 
+      // Delete the PDF file if it exists
+      if (video.pdf) {
+        const pdfPath = path.join(__dirname, "../../", video.pdf);
+        if (fs.existsSync(pdfPath)) {
+          await unlinkFile(pdfPath);
+          console.log(`PDF file deleted: ${pdfPath}`);
+        } else {
+          console.log(`PDF file not found at path: ${pdfPath}`);
+        }
+      }
+
+      // Delete the PPT file if it exists
+      if (video.ppt) {
+        const pptPath = path.join(__dirname, "../../", video.ppt);
+        if (fs.existsSync(pptPath)) {
+          await unlinkFile(pptPath);
+          console.log(`PPT file deleted: ${pptPath}`);
+        } else {
+          console.log(`PPT file not found at path: ${pptPath}`);
+        }
+      }
+
+      // Delete the document file if it exists
+      if (video.doc) {
+        const documentPath = path.join(__dirname, "../../", video.doc);
+        if (fs.existsSync(documentPath)) {
+          await unlinkFile(documentPath);
+          console.log(`Document file deleted: ${documentPath}`);
+        } else {
+          console.log(`Document file not found at path: ${documentPath}`);
+        }
+      }
+
+      // Finally, delete the video record itself
       await Video.findByIdAndDelete(video._id);
     }
 
+    // Delete the course document from the database
     const deletedCourse = await Course.findByIdAndDelete(courseId);
     if (!deletedCourse) {
-      return res.json({
+      return res.status(404).json({
         status: 404,
         error: "Course not found",
       });
     }
 
+    // Delete all orders associated with the course
     await Order.deleteMany({ courseId });
+
+    // If all associated videos are deleted, delete the course's folder in the videos directory
+    const courseVideoFolder = path.join(basePath, "videos", courseId); // Assuming the folder is named after courseId
+    if (fs.existsSync(courseVideoFolder)) {
+      const files = await fsPromises.readdir(courseVideoFolder);
+      if (files.length === 0) {
+        await rmdir(courseVideoFolder);
+        console.log(`Course video folder deleted: ${courseVideoFolder}`);
+      } else {
+        console.log(`Course video folder not empty, remaining files: ${files}`);
+      }
+    } else {
+      console.log(`Course video folder not found: ${courseVideoFolder}`);
+    }
 
     res.json({
       status: 200,
-      message: "Course and associated videos deleted successfully",
+      message: "Course, associated videos, and files deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting course:", error);
-    res.json({
+    res.status(500).json({
       status: 500,
       error: "Failed to delete course",
     });
