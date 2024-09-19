@@ -42,7 +42,7 @@ const {
   } = require("../Controller/admin/order_idController");
 const { createVideo, getAllVideos, getVideosByCourse,
     // getVideo, getThumbnail, 
-    updateVideoDetails, deleteVideo, updateVideoOrder, videotoggleButton } = require('../Controller/admin/videoController');
+    updateVideoDetails, deleteVideo, updateVideoOrder, coursechapters, videotoggleButton } = require('../Controller/admin/videoController');
 
 //Admin Route
 router.post("/login", login);
@@ -82,6 +82,7 @@ router.post('/:courseId/upload', createVideo);
 router.get('/videodetails', auth, getAllVideos);
 router.get("/courseWiseVideo/:courseId", getVideosByCourse);
 router.post('/editvideodetails/:id', auth, updateVideoDetails);
+router.get('/coursechapters/:courseId', coursechapters);
 router.delete('/videodetails/:id', auth, deleteVideo);
 router.put('/updateVideoOrder', updateVideoOrder);
 router.patch('/:id/videotoggleButton', videotoggleButton);

@@ -46,8 +46,8 @@ router.patch('/:id/toggle', async (req, res) => {
 
   // video progress
   router.post("/video-progress", updateVideoProgress);
-  router.get('/purchased-course/:courseId', 
-    authenticate, 
+  router.get('/purchased-course/:userId/:courseId',
+    // authenticate, 
     getPurchasedCourseDetails);
 
 module.exports = router;

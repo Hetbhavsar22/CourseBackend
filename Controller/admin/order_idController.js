@@ -493,6 +493,7 @@ const getAllCoursePurchases = async (req, res) => {
     const payments = await CoursePurchase.find(query)
       .populate("courseId", "cname")
       .populate("userId", "name email")
+      // .populate("userId", "name")
       .sort({ transactionDate: -1 })
       .sort({ [sortBy]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
@@ -500,10 +501,15 @@ const getAllCoursePurchases = async (req, res) => {
       .exec();
 
     res.json({
+      // payments: CoursePurchase.map((payment) => ({
+      //   ...payment._doc,
+      //   userName: payment.userId.name,
+      //   courseName: payment.courseId.cname,
+      // })),
       payments: payments.map((payment) => ({
         ...payment._doc,
         userName: payment.userId.name,
-        courseName: payment.courseId.cname,
+        courseName: payment.courseId,
       })),
       page: parseInt(page),
       pageCount,

@@ -11,6 +11,7 @@ const mongoose = require("mongoose");
 const VideoProgress = require("../../Model/VideoProgress");
 const util = require("util");
 const unlinkFile = util.promisify(fs.unlink);
+const { exec } = require("child_process");
 
 const createVideo = (req, res) => {
   upload(req, res, async (err) => {
@@ -47,6 +48,14 @@ const createVideo = (req, res) => {
           .notEmpty()
           .withMessage("Course ID is required")
           .run(req),
+          body("chapter")
+          .notEmpty()
+          .withMessage("Chapter is required")
+          .run(req),
+          body("chapter")
+          .notEmpty()
+          .withMessage("Chapter is required")
+          .run(req),
         // body("createdBy")
         //   .optional()
         //   .notEmpty()
@@ -64,7 +73,7 @@ const createVideo = (req, res) => {
         });
       }
 
-      const { title, description, tags, dvideo, type, courseId } = req.body;
+      const { title, description, tags, dvideo, type, courseId, chapter } = req.body;
 
       console.log("request Body: ", req.body);
 
@@ -96,11 +105,11 @@ const createVideo = (req, res) => {
         });
       }
 
- // Count the total videos for the course
- const totalVideos = await Video.countDocuments({ courseId });
+      // Count the total videos for the course
+      const totalVideos = await Video.countDocuments({ courseId });
 
-   // Set the order to be -(totalVideos + 1) so that first video is -1, second is -2, and so on
-   const newOrder = -(totalVideos + 1);
+      // Set the order to be -(totalVideos + 1) so that first video is -1, second is -2, and so on
+      const newOrder = -(totalVideos + 1);
 
       const newMedia = {
         createdBy: admin.name,
@@ -111,6 +120,7 @@ const createVideo = (req, res) => {
         type,
         active: true,
         order: newOrder, // Set the order as -1, -2, etc.
+        chapter,
       };
 
       if (type === "document") {
@@ -131,8 +141,16 @@ const createVideo = (req, res) => {
         // Generate DASH manifest using FFmpeg
         if (newMedia.videofile) {
           const videoFilePath = newMedia.videofile;
-          const videoFileName = path.basename(videoFilePath, path.extname(videoFilePath));
-          const outputDir = path.join(__dirname, "../../public/videos", courseId);
+          const videoFileName = path.basename(
+            videoFilePath,
+            path.extname(videoFilePath)
+          );
+          const outputDir = path.join(
+            __dirname,
+            "../../public/videos",
+            courseId,
+            chapter
+          );
 
           // Ensure output directory exists
           if (!fs.existsSync(outputDir)) {
@@ -141,23 +159,37 @@ const createVideo = (req, res) => {
 
           const manifestPath = path.join(outputDir, `${videoFileName}.mpd`);
 
+console.log('videofilepath: ',videoFilePath)
+
+          // await new Promise((resolve, reject) => {
+          //   ffmpeg(videoFilePath)
+          //     .output(manifestPath)
+          //     .outputOptions([
+          //       "-map 0",
+          //       "-use_timeline 1",
+          //       "-use_template 1",
+          //       "-init_seg_name init_$RepresentationID$.mp4",
+          //       "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
+          //       "-f dash",
+          //     ])
+          //     .on("end", resolve)
+          //     .on("error", reject)
+          //     .run();
+          // });
+
           await new Promise((resolve, reject) => {
-            ffmpeg(videoFilePath)
-              .output(manifestPath)
-              .outputOptions([
-                "-map 0",
-                "-use_timeline 1",
-                "-use_template 1",
-                "-init_seg_name init_$RepresentationID$.mp4",
-                "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
-                "-f dash",
-              ])
-              .on("end", resolve)
-              .on("error", reject)
-              .run();
+            exec(
+              `MP4Box -dash 1000 -frag 1000 -rap -profile live -out "${manifestPath}" "${videoFilePath}"`,
+              (error, stdout, stderr) => {
+                if (error) {
+                  return reject(`Error generating DASH manifest: ${stderr}`);
+                }
+                resolve();
+              }
+            );
           });
 
-          const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${videoFileName}.mpd`;
+          const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}.mpd`;
           newMedia.videofile = manifestUrl;
         }
       }
@@ -172,7 +204,7 @@ const createVideo = (req, res) => {
         })
       );
     } catch (error) {
-      console.error("Error creating video:", error.message);
+      console.error("Error creating video:", error);
       return res.json({
         status: 500,
         message: "Failed to create video",
@@ -204,12 +236,12 @@ const getAllVideos = async (req, res) => {
 
     // Fetch videos with sorting and pagination
     const videos = await Video.find(query)
-      .sort({ courseId: 1, [sortBy]: order === "asc" ? 1 : -1 }) 
+      .sort({ courseId: 1, [sortBy]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
-      .populate('courseId', 'cname') // Assuming 'courseId' refers to 'Course' model
-      .populate('adminId', 'name') // Assuming 'adminId' refers to 'Admin' model
-      .populate('updatedBy', 'name'); // Assuming 'updatedBy' refers to 'Admin' model
+      .populate("courseId", "cname") // Assuming 'courseId' refers to 'Course' model
+      .populate("adminId", "name") // Assuming 'adminId' refers to 'Admin' model
+      .populate("updatedBy", "name"); // Assuming 'updatedBy' refers to 'Admin' model
 
     res.json({
       status: 200,
@@ -226,7 +258,6 @@ const getAllVideos = async (req, res) => {
     });
   }
 };
-
 
 const getVideosByCourse = async (req, res) => {
   // Validation for request body
@@ -247,36 +278,32 @@ const getVideosByCourse = async (req, res) => {
 
   const { courseId } = req.params;
   const totalVideo = await Video.countDocuments({ courseId });
-    // const { page = 1, limit=totalVideo, search = "", sortBy = "order", order = "asc" } = req.query;
-    const { search = "", sortBy = "order", order = "asc" } = req.query;
-    if (!courseId) {
-      return res.status(400).json({
-        status: 400,
-        message: "courseId is required",
-      });
-    }
+  // const { page = 1, limit=totalVideo, search = "", sortBy = "order", order = "asc" } = req.query;
+  const { search = "", sortBy = "order", order = "asc" } = req.query;
+  if (!courseId) {
+    return res.status(400).json({
+      status: 400,
+      message: "courseId is required",
+    });
+  }
 
-    try {
+  try {
+    const course = await Course.findById(courseId).select("cname");
 
-      const course = await Course.findById(courseId).select('cname');
-    
     if (!course) {
       return res.status(404).json({
         status: 404,
         message: "Course not found",
       });
     }
-      
+
     // Fetch videos with pagination, filtering, and sorting
     const videos = await Video.find({
       courseId,
       title: { $regex: search, $options: "i" },
-    })
-      .sort({ [sortBy]: order })
-      // .skip((page - 1) * limit)
-      // .limit(parseInt(limit));
-
-   
+    }).sort({ [sortBy]: order });
+    // .skip((page - 1) * limit)
+    // .limit(parseInt(limit));
 
     // Check if videos are found
     if (!videos.length) {
@@ -304,9 +331,7 @@ const getVideosByCourse = async (req, res) => {
   }
 };
 
-
 const updateVideoDetails = (req, res) => {
-  console.log("start1");
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
@@ -315,8 +340,6 @@ const updateVideoDetails = (req, res) => {
         message: err.message,
       });
     }
-
-    console.log("Start2");
 
     // Validation
     await Promise.all([
@@ -339,13 +362,17 @@ const updateVideoDetails = (req, res) => {
         .isIn(["video", "document"])
         .withMessage("Invalid type")
         .run(req),
-      body("courseId")
-        .optional()
+        body("chapter")
         .notEmpty()
-        .withMessage("Course ID is required")
-        .custom((value) => mongoose.Types.ObjectId.isValid(value))
-        .withMessage("Invalid Course ID")
+        .withMessage("Chapter is required")
         .run(req),
+      // body("courseId")
+      //   .optional()
+      //   .notEmpty()
+      //   .withMessage("Course ID is required")
+      //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
+      //   .withMessage("Invalid Course ID")
+      //   .run(req),
       // body("createdBy")
       //   .optional()
       //   .notEmpty()
@@ -365,7 +392,7 @@ const updateVideoDetails = (req, res) => {
     }
 
     // Extract updated fields from the request body
-    const { title, description, dvideo, tags, type, courseId } = req.body;
+    const { title, description, dvideo, tags, type, courseId, chapter } = req.body;
 
     if (!courseId || !type) {
       return res.json({
@@ -373,6 +400,8 @@ const updateVideoDetails = (req, res) => {
         message: "Required fields are missing",
       });
     }
+
+    console.log("courseId: ", courseId)
 
     try {
       // Find the video document by ID
@@ -398,13 +427,14 @@ const updateVideoDetails = (req, res) => {
         });
       }
       const createdBy = admin.name;
-
+      
       // Update the video document with new data
       video.title = title || video.title;
       video.description = description || video.description;
       video.dvideo = demoStatus || video.dvideo;
       video.tags = tags || video.tags;
       video.type = type || video.type;
+      video.chapter = chapter || video.chapter;
       video.courseId = courseId || video.courseId;
       video.createdBy = createdBy || video.createdBy;
 
@@ -510,6 +540,21 @@ const updateVideoDetails = (req, res) => {
       });
     }
   });
+};
+
+
+const coursechapters = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const course = await Course.findById(courseId).populate("chapters");
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.json({ chapters: course.chapters });
+  } catch (error) {
+    console.error("Error fetching chapters:", error);
+    res.status(500).json({ message: "Failed to fetch chapters" });
+  }
 };
 
 const deleteVideo = async (req, res) => {
@@ -622,17 +667,14 @@ const deleteVideo = async (req, res) => {
   }
 };
 
-
 const updateVideoOrder = async (req, res) => {
   const { videos } = req.body;
 
   if (!Array.isArray(videos)) {
-    return res
-      .status(400)
-      .json({
-        status: 400,
-        message: "Invalid data format. 'videos' should be an array.",
-      });
+    return res.status(400).json({
+      status: 400,
+      message: "Invalid data format. 'videos' should be an array.",
+    });
   }
 
   try {
@@ -662,7 +704,7 @@ const videotoggleButton = async (req, res) => {
       return res.json({
         status: 404,
         message: "Video not found",
-      }); 
+      });
     }
     video.active = !video.active;
     await video.save();
@@ -748,6 +790,7 @@ module.exports = {
   getAllVideos,
   getVideosByCourse,
   updateVideoDetails,
+  coursechapters,
   deleteVideo,
   updateVideoOrder,
   videotoggleButton,

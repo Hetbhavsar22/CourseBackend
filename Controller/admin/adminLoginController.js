@@ -88,9 +88,9 @@ const login = async (req, res) => {
       adminDetail.otp = await generateOTP();
       adminDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000);
       adminDetail.verification_token = await generateOtpVerificationToken();
-      adminDetail.login_expire_time = new Date(
-        currentDate.getTime() + 24 * 60 * 60 * 1000
-      );
+      // adminDetail.login_expire_time = new Date(
+      //   currentDate.getTime() + 60 * 1000
+      // );
       //Send otp to mobile number start
       /*var otpParams = {
         country_code: adminDetail.cointry_code,
@@ -122,9 +122,9 @@ const login = async (req, res) => {
     } else {
       const token = generateToken(adminDetail);
       adminDetail.token = token;
-      adminDetail.login_expire_time = new Date(
-        currentDate.getTime() + 24 * 60 * 60 * 1000
-      );
+      // adminDetail.login_expire_time = new Date(
+      //   currentDate.getTime() + 24 * 60 * 60 * 1000
+      // );
       await adminDetail.save();
 
       return res.json({

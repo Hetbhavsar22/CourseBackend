@@ -7,7 +7,7 @@ const userModel = require('../../Model/userModel');
 const getPurchasedCourseDetails = async (req, res) => {
     try {
       // const userId = req.user._id; // Assuming user ID is attached to req.user after authentication
-      const { userId, courseId } = req.params;
+      const { courseId, userId } = req.params;
   
       // Check if the user is enrolled in the course
       const enrollment = await Enrollment.findOne({ userId, courseId });
@@ -21,7 +21,7 @@ const getPurchasedCourseDetails = async (req, res) => {
         return res.status(404).json({ message: 'Course not found.' });
       }
 
-      const user = await userModel.findById(courseId);
+      const user = await userModel.findById(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found.' });
       }
@@ -37,7 +37,10 @@ const getPurchasedCourseDetails = async (req, res) => {
       // Fetch all videos and documents associated with the course
       const videos = await Video.find({ courseId });  // Fetching videos with the matching courseId
   
-      console.log("Videos:", videos);  // Log the videos array to check if it's fetching correctly
+      // console.log("Videos:", videos);  // Log the videos array to check if it's fetching correctly
+      console.log("Courses:", course);
+      console.log("Start time:", course.startTime);
+      console.log("End time:", course.endTime);  
   
       // Structure the response
       const courseDetails = {
@@ -52,20 +55,25 @@ const getPurchasedCourseDetails = async (req, res) => {
         price: course.price,
         dprice: course.dprice,
         courseType: course.courseType,
-        percentage: enrollment.percentageCompleted,
+        percentage: course.percentage,
         startTime: course.startTime,
         endTime: course.endTime,
-        resourses: videos.map(video => ({
-          videoId: video._id,
-          title: video.title,
-          description: video.description,
-          thumbnail: video.thumbnail,
-          videofile: video.videofile,
-          pdf: video.pdf,
-          ppt: video.ppt,
-          doc: video.doc,
-          tags: video.tags,
-          type: video.type
+        chapters: course.chapters.map(chapter => ({
+          chapterName: chapter.name,
+          resources: videos
+            .filter(video => video.chapter === chapter.name)
+            .map(video => ({
+              videoId: video._id,
+              title: video.title,
+              description: video.description,
+              thumbnail: video.thumbnail,
+              videofile: video.videofile,
+              pdf: video.pdf,
+              ppt: video.ppt,
+              doc: video.doc,
+              tags: video.tags,
+              type: video.type
+            }))
         }))
       };
   

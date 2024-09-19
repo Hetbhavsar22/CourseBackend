@@ -5,6 +5,7 @@ const userModel = require("../../Model/userModel");
 const adminModel = require("../../Model/adminModel");
 const Enrollment = require("../../Model/enrollmentModel");
 const Order = require("../../Model/oder_IdModel");
+const Purchase = require("../../Model/coursePurchaseModel");
 const upload = require("../../middleware/upload");
 const path = require("path");
 const fs = require("fs");
@@ -98,6 +99,27 @@ const createCourse = async (req, res) => {
           .isFloat({ min: 10, max: 100 })
           .withMessage("Percentage should be between 10 and 100.")
           .run(req),
+          body("chapters")
+          .optional()
+          .isArray()
+          .withMessage("Chapters must be an array")
+          .custom((value) => {
+            if (!Array.isArray(value)) {
+              throw new Error("Chapters must be an array");
+            }
+            value.forEach((chapter, index) => {
+              if (
+                typeof chapter !== "string" ||
+                /[^a-zA-Z0-9\s]/.test(chapter)
+              ) {
+                throw new Error(
+                  `Chapter ${index + 1} must have a valid name without special characters.`
+                );
+              }
+            });
+            return true;
+          })
+          .run(req),
       ]);
 
       const validationErrorObj = validationResult(req);
@@ -117,6 +139,7 @@ const createCourse = async (req, res) => {
         language,
         price,
         dprice,
+        chapters,
         courseGst,
         courseType,
         percentage,
@@ -159,6 +182,10 @@ const createCourse = async (req, res) => {
         language,
         price: finalPrice,
         dprice: finalDprice,
+        chapters: chapters.map((chapter, index) => ({
+          number: index + 1,
+          name: chapter,
+        })),
         courseGst,
         courseType,
         percentage: courseType === "percentage" ? percentage : null,
@@ -222,12 +249,12 @@ const getAllCourses = async (req, res) => {
 
 const getCourseById = async (req, res) => {
   try {
-    await param("id")
-      .notEmpty()
-      .withMessage("Course ID is required")
-      .custom((value) => mongoose.Types.ObjectId.isValid(value))
-      .withMessage("Invalid course ID")
-      .run(req);
+    // await param("id")
+    //   .notEmpty()
+    //   .withMessage("Course ID is required")
+    //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
+    //   .withMessage("Invalid course ID")
+    //   .run(req);
 
     const validationErrorObj = validationResult(req);
     if (!validationErrorObj.isEmpty()) {
@@ -722,16 +749,38 @@ const coursetoggleButton = async (req, res) => {
 
 const getdashboard = async (req, res) => {
   try {
+    const currentDate = new Date(); // Get the current date
+    const past30Days = new Date(currentDate); // Clone the current date
+    past30Days.setDate(currentDate.getDate() - 30); // Set it to 30 days ago
+
     const totalCourses = await Course.countDocuments();
 
     const activeCourses = await Course.countDocuments({ active: true });
 
     const totalVideos = await Video.countDocuments();
 
+    const activeVideos = await Video.countDocuments({ active: true });
+
+    const totalUsers = await userModel.countDocuments();
+
+    const activeUsers = await userModel.countDocuments({ active: true });
+
+    const totalSales = await Enrollment.countDocuments();
+
+    // const oneMonthSales = await Enrollment.countDocuments({});
+    const oneMonthSales = await Purchase.countDocuments({
+      transactionDate: { $gte: past30Days }, // Assuming 'createdAt' is the field tracking when the enrollment was made
+    });
+
     res.status(200).json({
       totalCourses,
       activeCourses,
       totalVideos,
+      activeVideos,
+      totalUsers,
+      activeUsers,
+      totalSales,
+      oneMonthSales,
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);

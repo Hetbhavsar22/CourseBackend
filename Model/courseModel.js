@@ -62,6 +62,16 @@ const courseSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    chapters: [
+      {
+        number: {
+          type: Number,
+        },
+        name: {
+          type: String,
+        },
+      },
+    ],
     createdAt: {
       type: Date,
       default: Date.now,

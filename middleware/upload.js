@@ -1,5 +1,6 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 // Define file size limits
 const VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
@@ -81,43 +82,56 @@ const courseImageStorage = multer.diskStorage({
 // Storage configuration for different types of files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const type = req.body.type;
+    const { type, courseId, chapter } = req.body;
+
+    if (!courseId || !chapter) {
+      return cb(new Error("Course ID and Chapter are required"), false);
+    }
+
+    let folderPath = "";
 
     if (type === "video") {
       if (file.fieldname === "videofile") {
-        cb(null, "public/videos");
+        folderPath = path.join("public/videos", courseId, chapter);
       } else if (file.fieldname === "thumbnail") {
-        cb(null, "public/thumbnails");
+        folderPath = path.join("public/thumbnails", courseId, chapter);
       } else {
-        cb(new Error("Invalid field name for video"), false);
+        return cb(new Error("Invalid field name for video"), false);
       }
     } else if (type === "document") {
       if (file.fieldname === "pdf") {
-        cb(null, "public/pdf");
+        folderPath = path.join("public/pdf", courseId, chapter);
       } else if (file.fieldname === "doc") {
-        cb(null, "public/document");
+        folderPath = path.join("public/document", courseId, chapter);
       } else if (file.fieldname === "ppt") {
-        cb(null, "public/ppt");
+        folderPath = path.join("public/ppt", courseId, chapter);
       } else {
-        cb(new Error("Invalid field name for document"), false);
+        return cb(new Error("Invalid field name for document"), false);
       }
     } else if (file.fieldname === "profileImage") {
-      cb(null, "public/profile_images");
+      folderPath = path.join("public/profile_images", courseId, chapter);
     } else if (file.fieldname === "courseImage") {
-      cb(null, "public/course_images");
+      folderPath = path.join("public/course_images", courseId, chapter);
     } else {
-      cb(new Error("Invalid field name"), false);
+      return cb(new Error("Invalid field name"), false);
     }
+
+    // Ensure the folder exists
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    cb(null, folderPath);
   },
   filename: (req, file, cb) => {
     cb(null, `${file.originalname}`);
-  }
+  },
 });
 
 // Define file limits based on type
 const limits = {
   fileSize: (req, file, cb) => {
-    const type = req.body.type;
+    const type = req.body;
 
     if (type === "video") {
       if (file.fieldname === "videofile") {
@@ -144,7 +158,7 @@ const limits = {
     } else {
       cb(new Error("Invalid field name"), false);
     }
-  }
+  },
 };
 
 // Define file filters
@@ -154,25 +168,40 @@ const fileFilter = (req, file, cb) => {
   if (type === "video") {
     if (file.fieldname === "videofile" && file.mimetype.startsWith("video/")) {
       cb(null, true);
-    } else if (file.fieldname === "thumbnail" && file.mimetype.startsWith("image/")) {
+    } else if (
+      file.fieldname === "thumbnail" &&
+      file.mimetype.startsWith("image/")
+    ) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type for video"), false);
     }
   } else if (type === "document") {
-
     if (file.fieldname === "pdf" && file.mimetype === "application/pdf") {
       cb(null, true);
-    } else if (file.fieldname === "doc" && file.mimetype === "application/msword") {
+    } else if (
+      file.fieldname === "doc" &&
+      file.mimetype === "application/msword"
+    ) {
       cb(null, true);
-    } else if (file.fieldname === "ppt" && file.mimetype === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+    } else if (
+      file.fieldname === "ppt" &&
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type for document"), false);
     }
-  } else if (file.fieldname === "profileImage" && file.mimetype.startsWith("image/")) {
+  } else if (
+    file.fieldname === "profileImage" &&
+    file.mimetype.startsWith("image/")
+  ) {
     cb(null, true);
-  } else if (file.fieldname === "courseImage" && file.mimetype.startsWith("image/")) {
+  } else if (
+    file.fieldname === "courseImage" &&
+    file.mimetype.startsWith("image/")
+  ) {
     cb(null, true);
   } else {
     cb(new Error("Invalid file type"), false);

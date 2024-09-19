@@ -10,7 +10,6 @@ const videoSchema = new Schema(
     courseId: {
       type: Schema.Types.ObjectId,
       ref: "CourseList",
-      required: true,
     },
     title: {
       type: String,
@@ -70,6 +69,9 @@ const videoSchema = new Schema(
     order: { 
       type: Number, 
       default: 0 
+    },
+    chapter: {
+      type: String,
     },
     createdAt: {
       type: Date,

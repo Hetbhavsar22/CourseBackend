@@ -40,7 +40,7 @@ const AdminSchema = new Schema(
       type: String,
     },
     login_expire_time: {
-      type: Number,
+      type: Date,
       default: null,
     },
     verification_token: {
