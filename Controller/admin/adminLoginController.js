@@ -36,9 +36,9 @@ const login = async (req, res) => {
         .notEmpty()
         .withMessage("Email is required")
         .isEmail()
-        .withMessage("Enter a valid email address")
+        .withMessage("Please enter a valid email address.")
         .isLength({ max: 100 })
-        .withMessage("Email address cannot be longer than 100 characters")
+        .withMessage("Email address cannot exceed 100 characters.")
         .run(req),
       body("password").notEmpty().withMessage("Password is required").run(req),
       body("browserFingerprint")
@@ -61,7 +61,7 @@ const login = async (req, res) => {
     if (!adminDetail) {
       return res.json({
         status: 401,
-        message: "Email not exist",
+        message: "The email address you entered does not exist.",
       });
     }
 
@@ -72,7 +72,7 @@ const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.json({
         status: 401,
-        message: "Password is invalid",
+        message: "The password you entered is incorrect.",
       });
     }
 
@@ -112,7 +112,7 @@ const login = async (req, res) => {
       adminDetail.save();
       return res.json({
         status: 200,
-        message: "OTP has been sent",
+        message: "An OTP has been sent to your registered mobile number.",
         data: {
           verification_token: adminDetail.verification_token,
           is_otp_required: true,
@@ -143,7 +143,7 @@ const login = async (req, res) => {
     console.error("Login error:", error);
     return res.json({
       status: 401,
-      message: "Something went wrong. please try again later",
+      message: "An error occurred during login. Please try again later.",
     });
   }
 };
@@ -173,7 +173,7 @@ const verifyOTP = async (req, res) => {
     if (!adminDetail) {
       return res.json({
         status: 401,
-        message: "Invalid verification token",
+        message: "The verification token you provided is invalid.",
       });
     }
 
@@ -182,7 +182,7 @@ const verifyOTP = async (req, res) => {
     if (adminDetail.otp !== otp) {
       return res.json({
         status: 401,
-        message: "Invalid OTP",
+        message: "The OTP you entered is incorrect.",
       });
     }
 
@@ -192,7 +192,7 @@ const verifyOTP = async (req, res) => {
     ) {
       return res.json({
         status: 401,
-        message: "OTP has expired",
+        message: "The OTP has expired",
       });
     }
 
@@ -225,7 +225,7 @@ const verifyOTP = async (req, res) => {
     console.error("OTP Verification error:", error);
     return res.json({
       status: 401,
-      message: "Something went wrong. Please try again later.",
+      message: "An error occurred during OTP verification. Please try again later.",
     });
   }
 };
@@ -253,7 +253,7 @@ const resend_Otp = async (req, res) => {
     if (!adminDetail) {
       return res.json({
         status: 401,
-        message: "Invalid verification token",
+        message: "The verification token you provided is invalid.",
       });
     }
 
@@ -304,7 +304,7 @@ const resend_Otp = async (req, res) => {
     console.error("Error in /admin/resendOTP:", error);
     return res.json({
       status: 500,
-      message: "Something went wrong. Please try again later.",
+      message: "An error occurred while resending the OTP. Please try again later.",
     });
   }
 };
@@ -340,7 +340,7 @@ const getAdminDetails = async (req, res) => {
     console.error("Get Admin Data error:", error);
     return res.json({
       status: 500,
-      message: "Internal server error",
+      message: "An internal server error occurred.",
     });
   }
 };
@@ -373,7 +373,7 @@ const getAdminById = async (req, res) => {
     console.error("Error fetching admin details:", error);
     res.json({
       status: 500,
-      message: "Failed to fetch admin details",
+      message: "An error occurred while fetching admin details.",
     });
   }
 };

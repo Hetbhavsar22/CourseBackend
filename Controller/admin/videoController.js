@@ -56,6 +56,11 @@ const createVideo = (req, res) => {
           .notEmpty()
           .withMessage("Chapter is required")
           .run(req),
+          body("videoURL")
+          .optional()
+          .isURL()
+          .withMessage("Invalid URL format")
+          .run(req),
         // body("createdBy")
         //   .optional()
         //   .notEmpty()
@@ -73,12 +78,20 @@ const createVideo = (req, res) => {
         });
       }
 
-      const { title, description, tags, dvideo, type, courseId, chapter } = req.body;
+      const { title, description, tags, dvideo, type, courseId, chapter, videoURL } = req.body;
 
       console.log("request Body: ", req.body);
 
       if (!courseId || !type) {
         return res.status(400).json({ error: "Required fields are missing" });
+      }
+
+      if (type === "video" && !videoURL && !req.files["videofile"]) {
+        return res.status(400).json({ error: "Video URL or Video file is required." });
+      }
+
+      if (type === "video" && videoURL && req.files["videofile"]) {
+        return res.status(400).json({ error: "Only one of Video URL or Video file can be provided." });
       }
 
       const demoStatus =
@@ -121,6 +134,7 @@ const createVideo = (req, res) => {
         active: true,
         order: newOrder, // Set the order as -1, -2, etc.
         chapter,
+        videoURL: videoURL || null,
       };
 
       if (type === "document") {

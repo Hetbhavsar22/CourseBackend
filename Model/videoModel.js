@@ -36,6 +36,9 @@ const videoSchema = new Schema(
       //   return this.typev === 'video';
       // },
     },
+    videoURL: {
+      type: String,
+    },
     pdf: {
       type: String,
       // required: function() {

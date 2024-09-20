@@ -377,6 +377,27 @@ const updateCourse = async (req, res) => {
         .isFloat({ min: 10, max: 100 })
         .withMessage("Percentage should be between 10 and 100.")
         .run(req),
+        body("chapters")
+          .optional()
+          .isArray()
+          .withMessage("Chapters must be an array")
+          .custom((value) => {
+            if (!Array.isArray(value)) {
+              throw new Error("Chapters must be an array");
+            }
+            value.forEach((chapter, index) => {
+              if (
+                typeof chapter !== "string" ||
+                /[^a-zA-Z0-9\s]/.test(chapter)
+              ) {
+                throw new Error(
+                  `Chapter ${index + 1} must have a valid name without special characters.`
+                );
+              }
+            });
+            return true;
+          })
+          .run(req),
     ]);
 
     const validationErrorObj = validationResult(req);
@@ -397,6 +418,7 @@ const updateCourse = async (req, res) => {
       language,
       price,
       dprice,
+      chapters,
       courseGst,
       courseType,
       percentage,
@@ -418,6 +440,9 @@ const updateCourse = async (req, res) => {
       const finalPrice = price === "0" ? "Free" : price;
       const finalDprice = dprice === "0" ? "Free" : dprice;
 
+      console.log("shortDescription",shortDescription)
+      console.log("longDescription",longDescription)
+
       course.cname = cname || course.cname;
       course.totalVideo = totalVideo || course.totalVideo;
       course.courseImage = courseImage || course.courseImage;
@@ -427,6 +452,54 @@ const updateCourse = async (req, res) => {
       course.language = language || course.language;
       course.price = finalPrice || course.finalPrice;
       course.dprice = finalDprice || course.finalDprice;
+      if (chapters) {
+        let formattedChapters;
+        if (typeof chapters === 'string') {
+          // If chapters is a single string, convert it to an array with one chapter
+          formattedChapters = [{
+            number: 1,
+            name: chapters
+          }];
+        } else if (Array.isArray(chapters)) {
+          // If chapters is an array, ensure each item is an object with number and name
+          formattedChapters = chapters.map((chapter, index) => {
+            if (typeof chapter === 'string') {
+              return {
+                number: index + 1,
+                name: chapter
+              };
+            } else if (typeof chapter === 'object' && chapter.name) {
+              return {
+                number: chapter.number || index + 1,
+                name: chapter.name
+              };
+            }
+          }).filter(Boolean); // Remove any undefined entries
+        } else {
+          try {
+            // Try to parse chapters as JSON
+            const parsedChapters = JSON.parse(chapters);
+            if (Array.isArray(parsedChapters)) {
+              formattedChapters = parsedChapters.map((chapter, index) => ({
+                number: chapter.number || index + 1,
+                name: chapter.name || chapter.toString()
+              }));
+            } else {
+              formattedChapters = [{
+                number: 1,
+                name: parsedChapters.toString()
+              }];
+            }
+          } catch (error) {
+            console.error("Error parsing chapters:", error);
+            return res.json({
+              status: 400,
+              message: "Invalid chapters format",
+            });
+          }
+        }
+        course.chapters = formattedChapters;
+      }
       course.courseGst = courseGst || course.courseGst;
       course.courseType = courseType || course.courseType;
       if (courseType === "percentage") {

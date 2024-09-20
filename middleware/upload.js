@@ -84,6 +84,20 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const { type, courseId, chapter } = req.body;
 
+    if (file.fieldname === "profileImage") {
+      const folderPath = path.join("public/profile_images");
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+      return cb(null, folderPath);
+    } else if (file.fieldname === "courseImage") {
+      const folderPath = path.join("public/course_images");
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+      return cb(null, folderPath);
+    }
+
     if (!courseId || !chapter) {
       return cb(new Error("Course ID and Chapter are required"), false);
     }
@@ -108,10 +122,6 @@ const storage = multer.diskStorage({
       } else {
         return cb(new Error("Invalid field name for document"), false);
       }
-    } else if (file.fieldname === "profileImage") {
-      folderPath = path.join("public/profile_images", courseId, chapter);
-    } else if (file.fieldname === "courseImage") {
-      folderPath = path.join("public/course_images", courseId, chapter);
     } else {
       return cb(new Error("Invalid field name"), false);
     }

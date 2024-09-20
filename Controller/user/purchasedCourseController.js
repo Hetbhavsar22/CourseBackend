@@ -3,6 +3,7 @@ const Video = require('../../Model/videoModel');
 const Enrollment = require('../../Model/enrollmentModel');
 const User = require('../../Model/userModel');
 const userModel = require('../../Model/userModel');
+const VideoProgress = require('../../Model/VideoProgress');
 
 const getPurchasedCourseDetails = async (req, res) => {
     try {
@@ -37,12 +38,8 @@ const getPurchasedCourseDetails = async (req, res) => {
       // Fetch all videos and documents associated with the course
       const videos = await Video.find({ courseId });  // Fetching videos with the matching courseId
   
-      // console.log("Videos:", videos);  // Log the videos array to check if it's fetching correctly
-      console.log("Courses:", course);
-      console.log("Start time:", course.startTime);
-      console.log("End time:", course.endTime);  
+      const videoProgressData = await VideoProgress.find({ userId, courseId });
   
-      // Structure the response
       const courseDetails = {
         courseId: course._id,
         cname: course.cname,
@@ -62,7 +59,9 @@ const getPurchasedCourseDetails = async (req, res) => {
           chapterName: chapter.name,
           resources: videos
             .filter(video => video.chapter === chapter.name)
-            .map(video => ({
+            .map(video => {
+              const videoProgress = videoProgressData.find((progress) => progress.videoId.equals(video._id));
+            return {
               videoId: video._id,
               title: video.title,
               description: video.description,
@@ -72,12 +71,19 @@ const getPurchasedCourseDetails = async (req, res) => {
               ppt: video.ppt,
               doc: video.doc,
               tags: video.tags,
-              type: video.type
-            }))
-        }))
-      };
+              type: video.type,
+              progress: videoProgress ? videoProgress.progress : 0, // Default to 0 if no progress found
+              completed: videoProgress ? videoProgress.completed : false, // Default to false if not completed
+            };
+          }),
+      })),
+    };
+
   
-      res.status(200).json(courseDetails);
+      res.json({
+        status: 200,
+        courseDetails
+      });
   
     } catch (error) {
       res.status(500).json({ message: 'Server error', error });
