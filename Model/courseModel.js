@@ -11,7 +11,7 @@ const courseSchema = new Schema(
     },
     cname: {
       type: String,
-      validate: {
+      valiDate: {
         validator: function(v) {
             return /^[a-zA-Z0-9\s]+$/.test(v);
         },
@@ -24,8 +24,20 @@ const courseSchema = new Schema(
     courseImage: {
       type: String,
     },
+    demoVideofile: {
+      type: String,
+    },
     hours: {
       type: Number,
+    },
+    author: {
+      type: String,
+      valiDate: {
+        validator: function(v) {
+            return /^[a-zA-Z0-9\s]+$/.test(v);
+        },
+        message: props => `${props.value} contains special characters, which are not allowed!`
+    }
     },
     shortDescription: {
       type: String,
@@ -80,7 +92,7 @@ const courseSchema = new Schema(
       type: String,
       ref: "Admin",
     },
-    updatedBy: {
+    upDatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
     },

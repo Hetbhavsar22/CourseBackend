@@ -19,10 +19,6 @@ const videoSchema = new Schema(
       type: String,
       required: true,
     },
-    dvideo: {
-      type: String,
-      default: null,
-    },
     thumbnail: {
       type: String,
       default: null,
@@ -83,7 +79,7 @@ const videoSchema = new Schema(
     createdBy: {
       type: String,
     },
-    updatedBy: {
+    upDatedBy: {
       type: String,
       ref: 'admin'
     },

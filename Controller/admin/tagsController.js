@@ -68,7 +68,7 @@ const editTag = async (req, res) => {
     const updatedTag = await Tag.findByIdAndUpdate(id, { name }, { new: true });
     res.json({
       status: 200,
-      message: "Tag updated successfully",
+      message: "Tag upDated successfully",
       tag: updatedTag,
     });
   } catch (error) {

@@ -5,17 +5,17 @@ const editUser = async (req, res) => {
   const { name, email, phoneNumber, active } = req.body;
 
   try {
-    const updatedUser = await userModel.findByIdAndUpdate(
+    const upDatedUser = await userModel.findByIdAndUpDate(
       userId,
       { name, email, phoneNumber, active },
       { new: true, runValidators: true }
     );
 
-    if (!updatedUser) {
+    if (!upDatedUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ message: "User updated successfully", updatedUser });
+    res.status(200).json({ message: "User upDated successfully", upDatedUser });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

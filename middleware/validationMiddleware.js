@@ -33,8 +33,8 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-// Middleware to validate courseId
-const validateCourse = async (req, res, next) => {
+// Middleware to valiDate courseId
+const valiDateCourse = async (req, res, next) => {
   const { courseId } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(courseId)) {
@@ -62,12 +62,12 @@ const validateCourse = async (req, res, next) => {
 };
 
 // Combined validation function
-const validateRequest = async (req, res, next) => {
+const valiDateRequest = async (req, res, next) => {
   await authenticateUser(req, res, async () => {
-    await validateCourse(req, res, next);
+    await valiDateCourse(req, res, next);
   });
 };
 
 module.exports = {
-  validateRequest,
+  valiDateRequest,
 };

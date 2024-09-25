@@ -26,7 +26,7 @@ const videoProgressSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    updatedAt: {
+    upDatedAt: {
       type: Date,
       default: Date.now,
     },

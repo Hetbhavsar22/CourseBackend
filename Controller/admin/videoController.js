@@ -56,11 +56,6 @@ const createVideo = (req, res) => {
           .notEmpty()
           .withMessage("Chapter is required")
           .run(req),
-          body("videoURL")
-          .optional()
-          .isURL()
-          .withMessage("Invalid URL format")
-          .run(req),
         // body("createdBy")
         //   .optional()
         //   .notEmpty()
@@ -78,7 +73,7 @@ const createVideo = (req, res) => {
         });
       }
 
-      const { title, description, tags, dvideo, type, courseId, chapter, videoURL } = req.body;
+      const { title, description, tags, type, courseId, chapter, videoURL } = req.body;
 
       console.log("request Body: ", req.body);
 
@@ -86,16 +81,13 @@ const createVideo = (req, res) => {
         return res.status(400).json({ error: "Required fields are missing" });
       }
 
-      if (type === "video" && !videoURL && !req.files["videofile"]) {
-        return res.status(400).json({ error: "Video URL or Video file is required." });
-      }
+      // if (!videoURL && !req.files["videofile"]) {
+      //   return res.status(400).json({ error: "Video URL or Video file is required." });
+      // }
 
-      if (type === "video" && videoURL && req.files["videofile"]) {
-        return res.status(400).json({ error: "Only one of Video URL or Video file can be provided." });
-      }
-
-      const demoStatus =
-        dvideo === "true" ? "Use as a Demo Video" : "No demo video";
+      // if (videoURL && req.files["videofile"]) {
+      //   return res.status(400).json({ error: "Only one of Video URL or Video file can be provided." });
+      // }
 
       // Check if the course exists
       const course = await Course.findById(courseId);
@@ -124,6 +116,7 @@ const createVideo = (req, res) => {
       // Set the order to be -(totalVideos + 1) so that first video is -1, second is -2, and so on
       const newOrder = -(totalVideos + 1);
 
+      console.log("videoURL: ", videoURL)
       const newMedia = {
         createdBy: admin.name,
         courseId,
@@ -134,7 +127,7 @@ const createVideo = (req, res) => {
         active: true,
         order: newOrder, // Set the order as -1, -2, etc.
         chapter,
-        videoURL: videoURL || null,
+        videoURL,
       };
 
       if (type === "document") {
@@ -144,7 +137,6 @@ const createVideo = (req, res) => {
       }
 
       if (type === "video") {
-        newMedia.dvideo = demoStatus;
         newMedia.thumbnail = req.files["thumbnail"]
           ? req.files["thumbnail"][0].path
           : undefined;
@@ -255,7 +247,7 @@ const getAllVideos = async (req, res) => {
       .limit(parseInt(limit))
       .populate("courseId", "cname") // Assuming 'courseId' refers to 'Course' model
       .populate("adminId", "name") // Assuming 'adminId' refers to 'Admin' model
-      .populate("updatedBy", "name"); // Assuming 'updatedBy' refers to 'Admin' model
+      .populate("upDatedBy", "name"); // Assuming 'upDatedBy' refers to 'Admin' model
 
     res.json({
       status: 200,
@@ -345,7 +337,7 @@ const getVideosByCourse = async (req, res) => {
   }
 };
 
-const updateVideoDetails = (req, res) => {
+const upDateVideoDetails = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
@@ -405,8 +397,8 @@ const updateVideoDetails = (req, res) => {
       });
     }
 
-    // Extract updated fields from the request body
-    const { title, description, dvideo, tags, type, courseId, chapter } = req.body;
+    // Extract upDated fields from the request body
+    const { title, description, tags, type, courseId, chapter } = req.body;
 
     if (!courseId || !type) {
       return res.json({
@@ -427,9 +419,6 @@ const updateVideoDetails = (req, res) => {
         });
       }
 
-      const demoStatus =
-        dvideo === "true" ? "Use as a Demo Video" : "No demo video";
-
       const token = req.headers.authorization.split(" ")[1];
       const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
       const adminId = decodedToken.id;
@@ -442,21 +431,23 @@ const updateVideoDetails = (req, res) => {
       }
       const createdBy = admin.name;
       
-      // Update the video document with new data
+      video.thumbnail = null;
+      video.videofile = null;
+      video.pdf = null;
+      video.ppt = null;
+      video.doc = null;
+
+      // UpDate the video document with new data
       video.title = title || video.title;
       video.description = description || video.description;
-      video.dvideo = demoStatus || video.dvideo;
       video.tags = tags || video.tags;
       video.type = type || video.type;
       video.chapter = chapter || video.chapter;
       video.courseId = courseId || video.courseId;
       video.createdBy = createdBy || video.createdBy;
 
-      // Handle file updates based on type
+      // Handle file upDates based on type
       if (type === "document") {
-        video.dvideo = null;
-        video.thumbnail = null;
-        video.videofile = null;
         if (req.files["pdf"]) {
           video.pdf = req.files["pdf"][0].path;
         }
@@ -476,10 +467,7 @@ const updateVideoDetails = (req, res) => {
       }
 
       if (type === "video") {
-        video.pdf = null;
-        video.ppt = null;
-        video.doc = null;
-        video.dvideo = demoStatus;
+     
 
         if (req.files["thumbnail"]) {
           video.thumbnail = req.files["thumbnail"][0].path;
@@ -536,20 +524,20 @@ const updateVideoDetails = (req, res) => {
         }
       }
 
-      console.log("Updated Video Object:", video);
+      console.log("UpDated Video Object:", video);
 
-      // Save the updated video document
-      const updatedVideo = await video.save();
+      // Save the upDated video document
+      const upDatedVideo = await video.save();
       res.json({
         status: 200,
-        message: "Video updated successfully",
-        video: updatedVideo,
+        message: "Video upDated successfully",
+        video: upDatedVideo,
       });
     } catch (err) {
-      console.error("Database update error:", err.message);
+      console.error("Database upDate error:", err.message);
       res.json({
         status: 500,
-        message: "Failed to update video",
+        message: "Failed to upDate video",
         error: err.message,
       });
     }
@@ -692,7 +680,7 @@ const updateVideoOrder = async (req, res) => {
   }
 
   try {
-    // Loop through each video and update its order
+    // Loop through each video and upDate its order
     for (const video of videos) {
       await Video.updateOne(
         { _id: video._id },
@@ -701,7 +689,7 @@ const updateVideoOrder = async (req, res) => {
     }
     res
       .status(200)
-      .json({ status: 200, message: "Video order updated successfully" });
+      .json({ status: 200, message: "Video order upDated successfully" });
   } catch (error) {
     console.error("Error updating video order:", error);
     res
@@ -738,11 +726,11 @@ const videotoggleButton = async (req, res) => {
   }
 };
 
-const updateVideoProgress = async (req, res) => {
+const upDateVideoProgress = async (req, res) => {
   try {
     const { userId, videoId, courseId, progress } = req.body;
 
-    // Validate the inputs
+    // ValiDate the inputs
     if (!userId || !videoId || !courseId || typeof progress !== "number") {
       return res.status(400).json({
         status: 400,
@@ -763,10 +751,10 @@ const updateVideoProgress = async (req, res) => {
 
     if (videoProgress) {
       if (progress > videoProgress.progress) {
-        // Update the existing progress
+        // UpDate the existing progress
         videoProgress.progress = progress;
         videoProgress.completed = progress === 100;
-        videoProgress.updatedAt = Date.now();
+        videoProgress.upDatedAt = Date.now();
         await videoProgress.save();
       } else {
         return res.status(200).json({
@@ -788,13 +776,13 @@ const updateVideoProgress = async (req, res) => {
 
     return res.status(200).json({
       status: 200,
-      message: "Video progress updated successfully",
+      message: "Video progress upDated successfully",
     });
   } catch (error) {
     console.error("Error updating video progress:", error.message);
     return res.status(500).json({
       status: 500,
-      message: "Failed to update video progress",
+      message: "Failed to upDate video progress",
     });
   }
 };
@@ -803,10 +791,10 @@ module.exports = {
   createVideo,
   getAllVideos,
   getVideosByCourse,
-  updateVideoDetails,
+  upDateVideoDetails,
   coursechapters,
   deleteVideo,
   updateVideoOrder,
   videotoggleButton,
-  updateVideoProgress,
+  upDateVideoProgress,
 };

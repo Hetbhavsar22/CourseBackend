@@ -37,9 +37,10 @@ const AdminSchema = new Schema(
       default: null,
     },
     last_Browser_finger_print: {
-      type: String,
+      type: [String], // Array of fingerprints
+      default: [],
     },
-    login_expire_time: {
+    last_login_time: { // Change from login_expire_time to last_login_time
       type: Date,
       default: null,
     },

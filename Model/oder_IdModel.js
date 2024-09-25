@@ -35,7 +35,7 @@ const orderSchema = new Schema(
       type: Date,
       default: Date.now,
     },
-    updatedAt: {
+    upDatedAt: {
       type: Date,
     },
     flag: {

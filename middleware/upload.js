@@ -12,6 +12,7 @@ const DOC_SIZE_LIMIT = 50 * 1024 * 1024; // 50 MB
 
 const PROFILE_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
 const COURSE_IMAGE_SIZE_LIMIT = 500 * 1024 * 1024; // 500 MB
+const DEMO_VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
 
 // Storage configuration for video
 const videoStorage = multer.diskStorage({
@@ -79,6 +80,15 @@ const courseImageStorage = multer.diskStorage({
   },
 });
 
+const demoVideoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/demoVideos");
+  },
+  filename: (req, file, cb) => {
+    cb(null, "demoVideos_" + Date.now() + path.extname(file.originalname));
+  },
+});
+
 // Storage configuration for different types of files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -92,6 +102,12 @@ const storage = multer.diskStorage({
       return cb(null, folderPath);
     } else if (file.fieldname === "courseImage") {
       const folderPath = path.join("public/course_images");
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+      return cb(null, folderPath);
+    } else if (file.fieldname === "demoVideofile") {
+      const folderPath = path.join("public/demoVideos");
       if (!fs.existsSync(folderPath)) {
         fs.mkdirSync(folderPath, { recursive: true });
       }
@@ -165,6 +181,8 @@ const limits = {
       cb(null, PROFILE_IMAGE_SIZE_LIMIT);
     } else if (file.fieldname === "courseImage") {
       cb(null, COURSE_IMAGE_SIZE_LIMIT);
+    } else if (file.fieldname === "demoVideofile") {
+      cb(null, DEMO_VIDEO_SIZE_LIMIT);
     } else {
       cb(new Error("Invalid field name"), false);
     }
@@ -213,6 +231,11 @@ const fileFilter = (req, file, cb) => {
     file.mimetype.startsWith("image/")
   ) {
     cb(null, true);
+  } else if (
+    file.fieldname === "demoVideofile" &&
+    file.mimetype.startsWith("video/")
+  ) {
+    cb(null, true);
   } else {
     cb(new Error("Invalid file type"), false);
   }
@@ -227,6 +250,7 @@ const upload = multer({ storage, limits, fileFilter }).fields([
   { name: "doc", maxCount: 1 },
   { name: "profileImage", maxCount: 1 },
   { name: "courseImage", maxCount: 1 },
+  { name: "demoVideofile", maxCount: 1 },
 ]);
 
 module.exports = upload;

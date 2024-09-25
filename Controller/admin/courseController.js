@@ -47,26 +47,39 @@ const createCourse = async (req, res) => {
         body("totalVideo")
           .notEmpty()
           .withMessage("Total video count is required")
-          .isInt()
-          .withMessage("Total video count must be an integer")
+          .isInt({ min: 1 }) // Ensure at least 1 video
+          .withMessage("Total video count must be a positive integer")
           .run(req),
         body("hours")
           .notEmpty()
           .withMessage("Total hours are required")
-          .isFloat()
-          .withMessage("Hours must be a number")
+          .isFloat({ min: 1 }) // Ensure at least 1 hour
+          .withMessage("Hours must be a positive number")
+          .run(req),
+        body("author")
+          .notEmpty()
+          .withMessage("Author name is required")
+          .isLength({ min: 1, max: 50 })
+          .withMessage("Author name must be between 1 and 50 characters long")
+          .custom((value) => {
+            const specialCharRegex = /[^a-zA-Z0-9\s]/;
+            if (specialCharRegex.test(value)) {
+              throw new Error(
+                "Author name should not contain special characters."
+              );
+            }
+            return true;
+          })
           .run(req),
         body("shortDescription")
           .notEmpty()
           .withMessage("Short description is required")
-          // .isLength({ min: 1, max: 100 })
-          // .withMessage("Description must be between 1 and 100 characters long")
+          .isLength({ min: 1, max: 400 })
+          .withMessage("Description must be between 1 and 400 characters long")
           .run(req),
         body("longDescription")
           .notEmpty()
           .withMessage("Long description is required")
-          // .isLength({ min: 1, max: 500 })
-          // .withMessage("Description must be between 1 and 500 characters long")
           .run(req),
         body("language")
           .notEmpty()
@@ -75,8 +88,8 @@ const createCourse = async (req, res) => {
         body("price")
           .notEmpty()
           .withMessage("Price is required")
-          .isFloat()
-          .withMessage("Price must be a number")
+          .isFloat({ min: 0 }) // Ensure price is non-negative
+          .withMessage("Price must be a positive number")
           .custom((value) => {
             if (value > 500000) {
               throw new Error("Price must be less than or equal to 5 lakhs.");
@@ -87,8 +100,19 @@ const createCourse = async (req, res) => {
         body("dprice")
           .notEmpty()
           .withMessage("Display Price is required")
-          .isFloat()
-          .withMessage("Display Price must be a number")
+          .isFloat({ min: 0 }) // Ensure display price is non-negative
+          .withMessage("Display Price must be a positive number")
+          .run(req),
+        body("courseGst")
+          .notEmpty()
+          .withMessage("Course GST is required")
+          .isFloat({ min: 0, max: 100 }) // Ensure GST is between 0 and 100
+          .withMessage("GST must be between 0 and 100.")
+          .run(req),
+        body("chapters")
+          .optional()
+          .isArray()
+          .withMessage("Chapters must be an array")
           .run(req),
         body("courseType")
           .notEmpty()
@@ -98,27 +122,6 @@ const createCourse = async (req, res) => {
           .optional()
           .isFloat({ min: 10, max: 100 })
           .withMessage("Percentage should be between 10 and 100.")
-          .run(req),
-          body("chapters")
-          .optional()
-          .isArray()
-          .withMessage("Chapters must be an array")
-          .custom((value) => {
-            if (!Array.isArray(value)) {
-              throw new Error("Chapters must be an array");
-            }
-            value.forEach((chapter, index) => {
-              if (
-                typeof chapter !== "string" ||
-                /[^a-zA-Z0-9\s]/.test(chapter)
-              ) {
-                throw new Error(
-                  `Chapter ${index + 1} must have a valid name without special characters.`
-                );
-              }
-            });
-            return true;
-          })
           .run(req),
       ]);
 
@@ -134,6 +137,7 @@ const createCourse = async (req, res) => {
         cname,
         totalVideo,
         hours,
+        author,
         shortDescription,
         longDescription,
         language,
@@ -150,6 +154,11 @@ const createCourse = async (req, res) => {
       const courseImage =
         req.files && req.files.courseImage
           ? req.files.courseImage[0].path
+          : null;
+
+      const demoVideofile =
+        req.files && req.files.demoVideofile
+          ? req.files.demoVideofile[0].path
           : null;
 
       const existingCourse = await Course.findOne({ cname });
@@ -176,7 +185,9 @@ const createCourse = async (req, res) => {
         cname,
         totalVideo,
         courseImage,
+        demoVideofile,
         hours,
+        author,
         shortDescription,
         longDescription,
         language,
@@ -219,6 +230,8 @@ const getAllCourses = async (req, res) => {
       order = "desc",
     } = req.query;
 
+    const userId = req.body.userId;
+
     const query = {};
     if (search) {
       query.cname = new RegExp(search, "i");
@@ -232,6 +245,31 @@ const getAllCourses = async (req, res) => {
       .sort({ [sortBy]: order === "asc" ? 1 : -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+      if (userId) {
+        const enrollments = await Enrollment.find({ userId });
+        const enrolledCourseIds = enrollments.map(enrollment => enrollment.courseId.toString());
+  
+        const coursesWithEnrollmentStatus = courses.map(course => ({
+          _id: course._id,
+          cname: course.cname,
+          totalVideo: course.totalVideo,
+          courseImage: course.courseImage,
+          shortDescription: course.shortDescription,
+          hours: course.hours,
+          language: course.language,
+          price: course.price,
+          dprice: course.dprice,
+          isEnrolled: enrolledCourseIds.includes(course._id.toString()), // Check if the user is enrolled in the course
+        }));
+  
+        return res.json({
+          courses: coursesWithEnrollmentStatus,
+          page: parseInt(page),
+          pageCount,
+          totalCourses,
+        });
+      }
 
     res.json({
       courses,
@@ -265,9 +303,16 @@ const getCourseById = async (req, res) => {
     }
 
     const { id } = req.params;
+    const userId = req.body.userId;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.json({
+        status: 400,
+        message: "Invalid course ID",
+      });
+    }
 
     const course = await Course.findById(id);
-
     if (!course) {
       return res.json({
         status: 404,
@@ -275,9 +320,26 @@ const getCourseById = async (req, res) => {
       });
     }
 
+    if (!userId) {
+      return res.json({
+        status: 404,
+        message: "User not found",
+      });
+    }
+
+    // Check if user is enrolled in the course
+    let isEnrolled = false;
+    if (userId) {
+      const enrollment = await Enrollment.findOne({ userId, courseId: id });
+      isEnrolled = !!enrollment; // Set to true if enrollment exists
+    }
+
     return res.json({
       status: 200,
-      data: course,
+      data: {
+        ...course._doc, // Spread the course details
+        isEnrolled, // Include enrollment status
+      },
     });
   } catch (error) {
     console.error("Error fetching course by ID:", error.message);
@@ -317,23 +379,23 @@ const updateCourse = async (req, res) => {
 
       body("totalVideo")
         .notEmpty()
-        .withMessage("Total Videos cannot br empty")
-        .isNumeric()
-        .withMessage("Total video count must be a number")
+        .withMessage("Total Videos cannot be empty")
+        .isInt({ min: 1 }) // Ensure at least 1 video
+        .withMessage("Total video count must be a positive integer")
         .run(req),
 
       body("hours")
         .notEmpty()
         .withMessage("Total Hours cannot be empty")
-        .isNumeric()
-        .withMessage("Hours must be a number")
+        .isFloat({ min: 1 }) // Ensure at least 1 hour
+        .withMessage("Hours must be a positive number")
         .run(req),
 
       body("shortDescription")
         .notEmpty()
         .withMessage("Short description cannot be empty")
-        .isLength({ max: 250 })
-        .withMessage("Short description cannot exceed 250 characters")
+        .isLength({ max: 400 })
+        .withMessage("Short description cannot exceed 400 characters")
         .run(req),
 
       body("longDescription")
@@ -345,15 +407,15 @@ const updateCourse = async (req, res) => {
       body("language")
         .notEmpty()
         .withMessage("Language cannot be empty")
-        .isIn(["english", "hindi", "gujarati"])
+        .isIn(["English", "Hindi", "Gujarati"])
         .withMessage("Invalid language")
         .run(req),
 
       body("price")
         .notEmpty()
         .withMessage("Price is required")
-        .isFloat()
-        .withMessage("Price must be a number")
+        .isFloat({ min: 0 }) // Ensure price is non-negative
+        .withMessage("Price must be a positive number")
         .custom((value) => {
           if (value > 500000) {
             throw new Error("Price must be less than or equal to 5 lakhs.");
@@ -364,8 +426,15 @@ const updateCourse = async (req, res) => {
       body("dprice")
         .notEmpty()
         .withMessage("Display Price is required")
-        .isFloat()
-        .withMessage("Display Price must be a number")
+        .isFloat({ min: 0 }) // Ensure display price is non-negative
+        .withMessage("Display Price must be a positive number")
+        .run(req),
+
+      body("courseGst")
+        .notEmpty()
+        .withMessage("Course GST is required")
+        .isFloat({ min: 0, max: 100 }) // Ensure GST is between 0 and 100
+        .withMessage("GST must be between 0 and 100.")
         .run(req),
 
       body("courseType")
@@ -377,27 +446,6 @@ const updateCourse = async (req, res) => {
         .isFloat({ min: 10, max: 100 })
         .withMessage("Percentage should be between 10 and 100.")
         .run(req),
-        body("chapters")
-          .optional()
-          .isArray()
-          .withMessage("Chapters must be an array")
-          .custom((value) => {
-            if (!Array.isArray(value)) {
-              throw new Error("Chapters must be an array");
-            }
-            value.forEach((chapter, index) => {
-              if (
-                typeof chapter !== "string" ||
-                /[^a-zA-Z0-9\s]/.test(chapter)
-              ) {
-                throw new Error(
-                  `Chapter ${index + 1} must have a valid name without special characters.`
-                );
-              }
-            });
-            return true;
-          })
-          .run(req),
     ]);
 
     const validationErrorObj = validationResult(req);
@@ -408,11 +456,13 @@ const updateCourse = async (req, res) => {
       });
     }
 
-    const { courseId } = req.params;
+    // const { courseId } = req.params;
     const {
+      courseId,
       cname,
       totalVideo,
       hours,
+      author,
       shortDescription,
       longDescription,
       language,
@@ -425,8 +475,21 @@ const updateCourse = async (req, res) => {
       startTime,
       endTime,
     } = req.body;
+
+    if (!courseId) {
+      return res.json({
+        status: 400,
+        message: "Course ID is required.",
+      });
+    }
+
     const courseImage =
       req.files && req.files.courseImage ? req.files.courseImage[0].path : null;
+
+    const demoVideofile =
+      req.files && req.files.demoVideofile
+        ? req.files.demoVideofile[0].path
+        : null;
 
     try {
       const course = await Course.findById(courseId);
@@ -437,79 +500,56 @@ const updateCourse = async (req, res) => {
         });
       }
 
+      // Check if a course with the same name exists (other than the current course)
+      const existingCourse = await Course.findOne({
+        cname,
+        _id: { $ne: courseId },
+      });
+      if (existingCourse) {
+        return res.json({
+          status: 401,
+          message: "Course with the same details already exists",
+        });
+      }
+
       const finalPrice = price === "0" ? "Free" : price;
       const finalDprice = dprice === "0" ? "Free" : dprice;
 
-      console.log("shortDescription",shortDescription)
-      console.log("longDescription",longDescription)
-
+      // Update course fields
       course.cname = cname || course.cname;
       course.totalVideo = totalVideo || course.totalVideo;
       course.courseImage = courseImage || course.courseImage;
+      course.demoVideofile = demoVideofile || course.demoVideofile;
       course.hours = hours || course.hours;
+      course.author = author || course.author;
       course.shortDescription = shortDescription || course.shortDescription;
       course.longDescription = longDescription || course.longDescription;
       course.language = language || course.language;
-      course.price = finalPrice || course.finalPrice;
-      course.dprice = finalDprice || course.finalDprice;
+      course.price = finalPrice || course.price;
+      course.dprice = finalDprice || course.dprice;
+
+      // Handling chapters
       if (chapters) {
-        let formattedChapters;
-        if (typeof chapters === 'string') {
-          // If chapters is a single string, convert it to an array with one chapter
-          formattedChapters = [{
-            number: 1,
-            name: chapters
-          }];
-        } else if (Array.isArray(chapters)) {
-          // If chapters is an array, ensure each item is an object with number and name
-          formattedChapters = chapters.map((chapter, index) => {
-            if (typeof chapter === 'string') {
-              return {
-                number: index + 1,
-                name: chapter
-              };
-            } else if (typeof chapter === 'object' && chapter.name) {
-              return {
-                number: chapter.number || index + 1,
-                name: chapter.name
-              };
-            }
-          }).filter(Boolean); // Remove any undefined entries
-        } else {
-          try {
-            // Try to parse chapters as JSON
-            const parsedChapters = JSON.parse(chapters);
-            if (Array.isArray(parsedChapters)) {
-              formattedChapters = parsedChapters.map((chapter, index) => ({
-                number: chapter.number || index + 1,
-                name: chapter.name || chapter.toString()
-              }));
-            } else {
-              formattedChapters = [{
-                number: 1,
-                name: parsedChapters.toString()
-              }];
-            }
-          } catch (error) {
-            console.error("Error parsing chapters:", error);
-            return res.json({
-              status: 400,
-              message: "Invalid chapters format",
-            });
-          }
-        }
-        course.chapters = formattedChapters;
+        course.chapters = chapters.map((chapter, index) => ({
+          number: index + 1,
+          name: chapter,
+        }));
       }
+
+      // Handle courseType specific fields
       course.courseGst = courseGst || course.courseGst;
       course.courseType = courseType || course.courseType;
       if (courseType === "percentage") {
         course.percentage = percentage || course.percentage;
-      }
-      if (courseType === "timeIntervals") {
+        course.startTime = null; // Reset time-specific fields when type is percentage
+        course.endTime = null;
+      } else if (courseType === "timeIntervals") {
         course.startTime = startTime || course.startTime;
         course.endTime = endTime || course.endTime;
+        course.percentage = null; // Reset percentage when type is timeIntervals
       }
 
+      // Save updated course
       const updatedCourse = await course.save();
       return res.json({
         status: 200,
@@ -822,8 +862,8 @@ const coursetoggleButton = async (req, res) => {
 
 const getdashboard = async (req, res) => {
   try {
-    const currentDate = new Date(); // Get the current date
-    const past30Days = new Date(currentDate); // Clone the current date
+    const currentDate = new Date(); // Get the current Date
+    const past30Days = new Date(currentDate); // Clone the current Date
     past30Days.setDate(currentDate.getDate() - 30); // Set it to 30 days ago
 
     const totalCourses = await Course.countDocuments();
