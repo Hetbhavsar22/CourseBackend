@@ -475,7 +475,10 @@ const verifyToken = async (req, res, next) => {
     const diffInHours = timeLeft / (1000 * 60 * 60);
     // Debugging logs
 
+    const isAdminRequest = req.originalUrl.startsWith('/admin');
+
     // Check if the time left exceeds the 24-hour expiration time
+    if (isAdminRequest) {
     if (diffInHours >=24 || diffInHours<0) {
       return res.status(401).json({
         status: 401,
@@ -499,6 +502,7 @@ const verifyToken = async (req, res, next) => {
         message:"You must login in to one browser only"
       })
     }
+  }
     // Attach the admin details to the request object
     req.user = {
       id: adminDetail._id,

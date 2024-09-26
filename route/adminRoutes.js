@@ -59,7 +59,7 @@ router.get("/logout",logout);
 
 //Course Route
 router.post("/coursedetails", auth, createCourse);
-router.get("/courseList", auth, getAllCourses);
+router.get("/courseList", getAllCourses);
 router.get("/coursedetails/:id", getCourseById);
 router.post("/coursedetails/:courseId", auth, updateCourse);
 router.delete("/coursedetails/:id", auth, deleteCourse);

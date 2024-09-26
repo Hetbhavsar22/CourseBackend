@@ -133,34 +133,93 @@ const getallorders = async (req, res) => {
       order = "desc",
     } = req.query;
 
-    const query = {};
+    const matchStage = {};
     if (search) {
-      query["$or"] = [
-        { "userId.name": new RegExp(search, "i") },
-        { "courseId.cname": new RegExp(search, "i") },
+      const regex = new RegExp(search, "i");
+
+      // Check if the search term is a number (for amount search)
+      const searchAmount = !isNaN(search) ? Number(search) : null;
+
+      matchStage["$or"] = [
+        { "user.name": regex },           // Search by user's name
+        { "course.cname": regex },        // Search by course name
+        { razorpayOrderId: regex },       // Search by Razorpay Order ID
+        ...(searchAmount !== null ? [{ amount: searchAmount }] : []), // Search by amount if it's a number
       ];
     }
 
-    const totalOrders = await Order.countDocuments(query);
-    const pageCount = Math.ceil(totalOrders / limit);
+    const totalOrders = await Order.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $lookup: {
+          from: "courselists",
+          localField: "courseId",
+          foreignField: "_id",
+          as: "course",
+        },
+      },
+      { $unwind: "$course" },
+      {
+        $match: matchStage,
+      },
+      {
+        $count: "total",
+      },
+    ]);
 
-    const orders = await Order.find(query)
-      .populate("userId", "name")
-      .populate("courseId", "cname")
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .exec();
+    const orders = await Order.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $lookup: {
+          from: "courselists",
+          localField: "courseId",
+          foreignField: "_id",
+          as: "course",
+        },
+      },
+      { $unwind: "$course" },
+      {
+        $match: matchStage,
+      },
+      {
+        $sort: { [sortBy]: order === "asc" ? 1 : -1 },
+      },
+      {
+        $skip: (page - 1) * limit,
+      },
+      {
+        $limit: parseInt(limit),
+      },
+    ]);
+
+    const totalRecords = totalOrders[0]?.total || 0;
+    const pageCount = Math.ceil(totalRecords / limit);
 
     res.json({
       orders: orders.map((order) => ({
-        ...order._doc,
-        userName: order.userId.name,
-        courseName: order.courseId.cname,
+        ...order,
+        userName: order.user.name,
+        courseName: order.course.cname,
       })),
       page: parseInt(page),
       pageCount,
-      totalOrders,
+      totalOrders: totalRecords,
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -477,25 +536,33 @@ const getAllCoursePurchases = async (req, res) => {
     } = req.query;
 
     const query = {};
-    // if (search) {
-    //   query["$or"] = [
-    //     { "userId.name": new RegExp(search, "i") },
-    //     { "courseId.cname": new RegExp(search, "i") },
-    //   ];
-    // }
+    
     if (search) {
-      query.customerName = new RegExp(search, "i");
+      const regex = new RegExp(search, "i");
+
+      // Check if the search term is a number (for mobileNumber and totalPaidAmount search)
+      const searchNumber = !isNaN(search) ? Number(search) : null;
+
+      query["$or"] = [
+        { customerName: regex },          // Search by customer name
+        { customerEmail: regex },         // Search by customer email
+        { transactionId: regex },         // Search by transaction ID
+        { invoiceNumber: regex },         // Search by invoice number
+        ...(searchNumber !== null ? [{ mobileNumber: searchNumber }, { totalPaidAmount: searchNumber }] : []), // Search by mobile number and total paid amount if the search is a number
+      ];
     }
+
+    const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
     const totalPayments = await CoursePurchase.countDocuments(query);
     const pageCount = Math.ceil(totalPayments / limit);
 
     const payments = await CoursePurchase.find(query)
-      .populate("courseId", "cname")
-      .populate("userId", "name email")
+      // .populate("courseId", "cname")
       // .populate("userId", "name")
-      .sort({ transactionDate: -1 })
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
+      // .populate("userId", "name")
+      // .sort({ transactionDate: -1 })
+      .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .exec();

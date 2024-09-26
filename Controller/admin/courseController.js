@@ -228,49 +228,120 @@ const getAllCourses = async (req, res) => {
       limit = 4,
       sortBy = "createdAt",
       order = "desc",
+      userId,
+      cname,
+      price,
+      dprice,
+      courseGst,
+      totalVideo,
+      hours,
+      author,
+      language,
+      courseType,
+      percentage,
+      createdBy,
+      createdAt,
     } = req.query;
 
-    const userId = req.body.userId;
-
+    // Initialize query object
     const query = {};
+
+    // If 'search' is present, apply a general search across multiple fields
     if (search) {
-      query.cname = new RegExp(search, "i");
+      query.$or = [
+        { cname: new RegExp(search, "i") },
+        { author: new RegExp(search, "i") },
+        { language: new RegExp(search, "i") },
+        { courseType: new RegExp(search, "i") },
+      ];
     }
 
-    const totalCourses = await Course.countDocuments(query);
+    // Additional field-specific filters
+    if (cname) {
+      query.cname = new RegExp(cname, "i");
+    }
+    if (price) {
+      query.price = price; // Assuming exact match; use ranges if needed
+    }
+    if (dprice) {
+      query.dprice = dprice;
+    }
+    if (courseGst) {
+      query.courseGst = courseGst;
+    }
+    if (totalVideo) {
+      query.totalVideo = totalVideo;
+    }
+    if (hours) {
+      query.hours = hours;
+    }
+    if (author) {
+      query.author = new RegExp(author, "i");
+    }
+    if (language) {
+      query.language = new RegExp(language, "i");
+    }
+    if (courseType) {
+      query.courseType = new RegExp(courseType, "i");
+    }
+    if (percentage) {
+      query.percentage = percentage;
+    }
+    if (createdBy) {
+      query.createdBy = createdBy;
+    }
+    if (createdAt) {
+      const createdAtDate = new Date(createdAt);
+      query.createdAt = {
+        $gte: createdAtDate.setHours(0, 0, 0, 0),
+        $lt: createdAtDate.setHours(23, 59, 59, 999),
+      };
+    }
 
+    const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
+
+
+    // Pagination and Sorting
+    const totalCourses = await Course.countDocuments(query);
     const pageCount = Math.ceil(totalCourses / limit);
 
+    // Fetch courses with sorting and pagination
     const courses = await Course.find(query)
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
+      .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-      if (userId) {
-        const enrollments = await Enrollment.find({ userId });
-        const enrolledCourseIds = enrollments.map(enrollment => enrollment.courseId.toString());
-  
-        const coursesWithEnrollmentStatus = courses.map(course => ({
-          _id: course._id,
-          cname: course.cname,
-          totalVideo: course.totalVideo,
-          courseImage: course.courseImage,
-          shortDescription: course.shortDescription,
-          hours: course.hours,
-          language: course.language,
-          price: course.price,
-          dprice: course.dprice,
-          isEnrolled: enrolledCourseIds.includes(course._id.toString()), // Check if the user is enrolled in the course
-        }));
-  
-        return res.json({
-          courses: coursesWithEnrollmentStatus,
-          page: parseInt(page),
-          pageCount,
-          totalCourses,
-        });
-      }
+    // Check if `userId` is provided to determine enrollment status
+    if (userId) {
+      const enrollments = await Enrollment.find({ userId });
+      const enrolledCourseIds = enrollments.map((enrollment) =>
+        enrollment.courseId.toString()
+      );
 
+      // Add enrollment status to each course
+      const coursesWithEnrollmentStatus = courses.map((course) => ({
+        _id: course._id,
+        cname: course.cname,
+        totalVideo: course.totalVideo,
+        courseImage: course.courseImage,
+        shortDescription: course.shortDescription,
+        hours: course.hours,
+        language: course.language,
+        author: course.author,
+        price: course.price,
+        dprice: course.dprice,
+        isEnrolled: enrolledCourseIds.includes(course._id.toString()),
+      }));
+
+      return res.json({
+        courses: coursesWithEnrollmentStatus,
+        page: parseInt(page),
+        pageCount,
+        totalCourses,
+      });
+    }
+
+    // Return course data if userId is not provided
     res.json({
       courses,
       page: parseInt(page),
@@ -278,12 +349,13 @@ const getAllCourses = async (req, res) => {
       totalCourses,
     });
   } catch (error) {
-    res.json({
-      status: 500,
+    console.error("Error fetching courses:", error);
+    res.status(500).json({
       message: error.message,
     });
   }
 };
+
 
 const getCourseById = async (req, res) => {
   try {

@@ -16,6 +16,7 @@ const orderSchema = new Schema(
     amount: {
       type: Number,
       required: true,
+      min: 0,
     },
     currency: {
       type: String,
@@ -34,9 +35,6 @@ const orderSchema = new Schema(
     createdAt: {
       type: Date,
       default: Date.now,
-    },
-    upDatedAt: {
-      type: Date,
     },
     flag: {
       type: Boolean,

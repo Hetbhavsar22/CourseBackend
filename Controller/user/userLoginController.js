@@ -281,8 +281,19 @@ const getAllUser = async (req, res) => {
     } = req.query;
 
     const query = {};
+
     if (search) {
-      query.name = new RegExp(search, "i");
+      const regex = new RegExp(search, "i");
+
+      // Check if the search term is a number (for phoneNumber search)
+      const searchNumber = !isNaN(search) ? Number(search) : null;
+
+      // Search by name, email, and phoneNumber
+      query["$or"] = [
+        { name: regex },              // Search by user name
+        { email: regex },             // Search by email
+        ...(searchNumber !== null ? [{ phoneNumber: searchNumber }] : []), // Search by phone number if the search is a number
+      ];
     }
 
     // Calculate the total number of courses that match the query

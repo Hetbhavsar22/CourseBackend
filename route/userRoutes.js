@@ -16,7 +16,7 @@ router.post('/login', login);
 router.post('/verify-otp', verifyOTP);
 router.post('/register', register);
 router.get('/userList', getAllUser);
-router.put("/editUser", upload.none(), editUser);
+router.put("/editUser", editUser);
 router.delete("/deleteUser/:id", deleteUser);
 // router.post('/change_password', changePassword);
 // router.post('/upDate_details', upDateDetails);
@@ -47,7 +47,7 @@ router.patch('/:id/toggle', async (req, res) => {
   // video progress
   router.post("/video-progress", upDateVideoProgress);
   router.get('/purchased-course/:userId/:courseId',
-    // authenticate, 
+    // authenticate,
     getPurchasedCourseDetails);
 
 module.exports = router;

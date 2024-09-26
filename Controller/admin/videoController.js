@@ -219,7 +219,6 @@ console.log('videofilepath: ',videoFilePath)
   });
 };
 
-// Controller to get all videos
 const getAllVideos = async (req, res) => {
   try {
     const {
@@ -228,13 +227,36 @@ const getAllVideos = async (req, res) => {
       limit = 4,
       sortBy = "order",
       order = "asc",
+      courseId,
+      author,
     } = req.query;
 
-    // Set up query for video search
     const query = {};
+
+    let courseIds = [];
+    
     if (search) {
-      query.title = new RegExp(search, "i");
+      const regex = new RegExp(search, "i");
+
+      // Search in the 'title' field of the videos
+      query["$or"] = [{ title: regex }];
+
+      // Search in the 'cname' field of the CourseList model
+      const courses = await Course.find({ cname: regex }, '_id');
+
+      if (courses.length) {
+        courseIds = courses.map(course => course._id);
+        query["$or"].push({ courseId: { $in: courseIds } }); // Add courseId search
+      }
+      if (author) {
+        query.author = new RegExp(author, "i");
+      }
+      if (courseId) {
+        query.courseId = courseId;
+      }
     }
+
+    const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
     // Pagination and Sorting
     const totalVideo = await Video.countDocuments(query);
@@ -242,7 +264,7 @@ const getAllVideos = async (req, res) => {
 
     // Fetch videos with sorting and pagination
     const videos = await Video.find(query)
-      .sort({ courseId: 1, [sortBy]: order === "asc" ? 1 : -1 })
+      .sort({ courseId: 1, [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .populate("courseId", "cname") // Assuming 'courseId' refers to 'Course' model
@@ -543,7 +565,6 @@ const upDateVideoDetails = (req, res) => {
     }
   });
 };
-
 
 const coursechapters = async (req, res) => {
   try {
