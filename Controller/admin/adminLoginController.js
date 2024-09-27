@@ -101,7 +101,7 @@ const login = async (req, res) => {
     }
       // If more than 24 hours or new device/browser, prompt for OTP
       adminDetail.otp = generateOTP();
-      adminDetail.last_login_time = new Date(currentDate.getTime()); // UpDate login expiration time
+      adminDetail.last_login_time = new Date(currentDate.getTime()); // Update login expiration time
 
       adminDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000); // 5-minute expiration
       adminDetail.verification_token = generateOtpVerificationToken();

@@ -110,7 +110,7 @@ const getOrderById = async (req, res) => {
         currency: order.currency,
         status: order.status,
         createdAt: order.createdAt,
-        upDatedAt: order.upDatedAt,
+        updatedAt: order.updatedAt,
       },
     });
   } catch (error) {
@@ -235,13 +235,13 @@ const editOrder = async (req, res) => {
     const { id } = req.params;
     const { amount, currency, status } = req.body;
 
-    const upDatedOrder = await Order.findByIdAndUpDate(
+    const updatedOrder = await Order.findByIdAndUpdate(
       id,
-      { amount, currency, status, upDatedAt: Date.now() },
+      { amount, currency, status, updatedAt: Date.now() },
       { new: true }
     );
 
-    if (!upDatedOrder) {
+    if (!updatedOrder) {
       return res.status(404).json({
         status: 404,
         message: "Order not found",
@@ -250,8 +250,8 @@ const editOrder = async (req, res) => {
 
     res.json({
       status: 200,
-      message: "Order upDated successfully",
-      order: upDatedOrder,
+      message: "Order updated successfully",
+      order: updatedOrder,
     });
   } catch (error) {
     res.status(500).json({
@@ -315,7 +315,7 @@ const verifyPayment = async (req, res) => {
 
     const hmac = crypto.createHmac("sha256", key_secret);
     const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
-    hmac.upDate(payload);
+    hmac.update(payload);
     const generatedSignature = hmac.digest("hex");
 
     if (generatedSignature !== razorpaySignature) {
@@ -440,7 +440,7 @@ const verifyPayment = async (req, res) => {
     
     1. Access Your Course: You can start learning right away! Simply log in to your account on [Your Platform Link] and access your course under the “My Courses” section.
     2. Get Ready to Learn: Make sure you have a comfortable learning environment, a notebook for taking notes, and a readiness to absorb all the valuable information coming your way.
-    3. Stay Connected: Don’t forget to join our community on [Social Media Links] where you can share your progress, ask questions, and stay upDated with the latest news and resources.
+    3. Stay Connected: Don’t forget to join our community on [Social Media Links] where you can share your progress, ask questions, and stay updated with the latest news and resources.
     
     🎁 A Special Gift for You!
     

@@ -79,7 +79,7 @@ const videoSchema = new Schema(
     createdBy: {
       type: String,
     },
-    upDatedBy: {
+    updatedBy: {
       type: String,
       ref: 'admin'
     },

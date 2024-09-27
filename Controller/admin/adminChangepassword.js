@@ -139,7 +139,7 @@ const updateDetails = async (req, res) => {
 
       res.json({
         status: 200,
-        message: "Details upDated successfully!",
+        message: "Details updated successfully!",
         data: {
           id: adminDetail._id,
           name: adminDetail.name,

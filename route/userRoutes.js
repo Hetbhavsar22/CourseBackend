@@ -4,7 +4,7 @@ const { login, verifyOTP, register, getAllUser } = require('../Controller/user/u
 const { editUser, deleteUser } = require("../Controller/user/editUserController");
 const userModel = require('../Model/userModel')
 const { valiDateRequest } = require('../middleware/validationMiddleware');
-const { upDateVideoProgress } = require('../Controller/admin/videoController');
+const { updateVideoProgress } = require('../Controller/admin/videoController');
 const { getPurchasedCourseDetails } = require('../Controller/user/purchasedCourseController');
 const authenticate = require('../middleware/userAuth');
 // const { changePassword, upDateDetails } = require('../Controller/adminChangepassword');
@@ -45,7 +45,7 @@ router.patch('/:id/toggle', async (req, res) => {
   });
 
   // video progress
-  router.post("/video-progress", upDateVideoProgress);
+  router.post("/video-progress", updateVideoProgress);
   router.get('/purchased-course/:userId/:courseId',
     // authenticate,
     getPurchasedCourseDetails);

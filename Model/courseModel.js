@@ -92,7 +92,7 @@ const courseSchema = new Schema(
       type: String,
       ref: "Admin",
     },
-    upDatedBy: {
+    updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
     },

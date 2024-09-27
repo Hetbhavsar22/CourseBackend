@@ -44,7 +44,7 @@ const {
   } = require("../Controller/admin/order_idController");
 const { createVideo, getAllVideos, getVideosByCourse,
     // getVideo, getThumbnail, 
-    upDateVideoDetails, deleteVideo, updateVideoOrder, coursechapters, videotoggleButton } = require('../Controller/admin/videoController');
+    updateVideoDetails, deleteVideo, updateVideoOrder, coursechapters, videotoggleButton } = require('../Controller/admin/videoController');
 
 //Admin Route
 router.post("/login", login);
@@ -73,9 +73,9 @@ router.get("/getOrder/:orderId", auth, getOrderById);
 router.get("/getallOrder", auth, getallorders);
 router.put("/editorder/:id", auth, editOrder);
 router.delete("/deleteorder/:id", auth, deleteOrder);
-router.post("/verify-payment", auth, verifyPayment);
-router.get("/purchased-courses-byuser/:userId", auth, getEnrolledCourses);
-router.get("/allPurchasedCourse", auth, getAllCoursePurchases);
+router.post("/verify-payment", verifyPayment);
+router.get("/purchased-courses-byuser/:userId", getEnrolledCourses);
+router.get("/allPurchasedCourse", getAllCoursePurchases);
 router.delete("/deletetransaction/:id", auth, deleteCoursePurchase);
 router.post("/refund", initiateRefund);
 router.patch("/:id/coursePurchasetoggleButton", coursePurchasetoggleButton);
@@ -84,7 +84,7 @@ router.patch("/:id/coursePurchasetoggleButton", coursePurchasetoggleButton);
 router.post('/:courseId/upload', auth, createVideo);
 router.get('/videodetails', auth, getAllVideos);
 router.get("/courseWiseVideo/:courseId", auth, getVideosByCourse);
-router.post('/editvideodetails/:id', auth, upDateVideoDetails);
+router.post('/editvideodetails/:id', auth, updateVideoDetails);
 router.get('/coursechapters/:courseId', auth, coursechapters);
 router.delete('/videodetails/:id', auth, deleteVideo);
 router.put('/updateVideoOrder', updateVideoOrder);

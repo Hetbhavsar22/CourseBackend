@@ -528,9 +528,9 @@ const updateCourse = async (req, res) => {
       });
     }
 
-    // const { courseId } = req.params;
+    const { courseId } = req.params;
     const {
-      courseId,
+      // courseId,
       cname,
       totalVideo,
       hours,
@@ -547,7 +547,8 @@ const updateCourse = async (req, res) => {
       startTime,
       endTime,
     } = req.body;
-
+    
+    console.log("courseId: ", courseId)
     if (!courseId) {
       return res.json({
         status: 400,
