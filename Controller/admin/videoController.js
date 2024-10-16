@@ -2,6 +2,7 @@ const upload = require("../../middleware/upload");
 const Video = require("../../Model/videoModel");
 const Course = require("../../Model/courseModel");
 const adminModel = require("../../Model/adminModel");
+const Enrollment = require("../../Model/enrollmentModel");
 const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
@@ -17,14 +18,13 @@ const createVideo = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
-      return res.json({
+      return res.status(400).json({
         status: 400,
         message: err.message,
       });
     }
 
     try {
-      // Validation
       await Promise.all([
         body("title")
           .notEmpty()
@@ -48,51 +48,30 @@ const createVideo = (req, res) => {
           .notEmpty()
           .withMessage("Course ID is required")
           .run(req),
-          body("chapter")
-          .notEmpty()
-          .withMessage("Chapter is required")
-          .run(req),
-          body("chapter")
-          .notEmpty()
-          .withMessage("Chapter is required")
-          .run(req),
-        // body("createdBy")
-        //   .optional()
-        //   .notEmpty()
-        //   .withMessage("CreatedBy is required")
-        //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
-        //   .withMessage("Invalid CreatedBy ID")
-        //   .run(req),
+        body("chapter").notEmpty().withMessage("Chapter is required").run(req),
       ]);
 
       const validationErrorObj = validationResult(req);
       if (!validationErrorObj.isEmpty()) {
-        return res.json({
+        return res.status(401).json({
           status: 401,
           message: validationErrorObj.errors[0].msg,
         });
       }
 
-      const { title, description, tags, type, courseId, chapter, videoURL } = req.body;
+      const { title, description, tags, type, courseId, chapter, videoURL, fileType } =
+        req.body;
 
-      console.log("request Body: ", req.body);
+      const demoVideofile =
+        req.files && req.files.demoVideofile
+          ? req.files.demoVideofile[0].path
+          : null;
 
-      if (!courseId || !type) {
-        return res.status(400).json({ error: "Required fields are missing" });
-      }
+      console.log("Request Body: ", req.body);
 
-      // if (!videoURL && !req.files["videofile"]) {
-      //   return res.status(400).json({ error: "Video URL or Video file is required." });
-      // }
-
-      // if (videoURL && req.files["videofile"]) {
-      //   return res.status(400).json({ error: "Only one of Video URL or Video file can be provided." });
-      // }
-
-      // Check if the course exists
       const course = await Course.findById(courseId);
       if (!course) {
-        return res.json({
+        return res.status(404).json({
           status: 404,
           message: "Course not found",
         });
@@ -104,30 +83,28 @@ const createVideo = (req, res) => {
 
       const admin = await adminModel.findById(adminId);
       if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
-        return res.json({
+        return res.status(401).json({
           status: 401,
           message: "Admin not found",
         });
       }
 
-      // Count the total videos for the course
       const totalVideos = await Video.countDocuments({ courseId });
-
-      // Set the order to be -(totalVideos + 1) so that first video is -1, second is -2, and so on
       const newOrder = -(totalVideos + 1);
 
-      console.log("videoURL: ", videoURL)
       const newMedia = {
         createdBy: admin.name,
         courseId,
         title,
         description,
         tags,
+        demoVideofile,
         type,
         active: true,
-        order: newOrder, // Set the order as -1, -2, etc.
+        order: newOrder,
         chapter,
         videoURL,
+        fileType
       };
 
       if (type === "document") {
@@ -144,7 +121,7 @@ const createVideo = (req, res) => {
           ? req.files["videofile"][0].path
           : undefined;
 
-        // Generate DASH manifest using FFmpeg
+        // Generate DASH manifest using MP4Box
         if (newMedia.videofile) {
           const videoFilePath = newMedia.videofile;
           const videoFileName = path.basename(
@@ -155,7 +132,8 @@ const createVideo = (req, res) => {
             __dirname,
             "../../public/videos",
             courseId,
-            chapter
+            chapter,
+            videoFileName
           );
 
           // Ensure output directory exists
@@ -165,29 +143,15 @@ const createVideo = (req, res) => {
 
           const manifestPath = path.join(outputDir, `${videoFileName}.mpd`);
 
-console.log('videofilepath: ',videoFilePath)
+          console.log("Video file path: ", videoFilePath);
 
-          // await new Promise((resolve, reject) => {
-          //   ffmpeg(videoFilePath)
-          //     .output(manifestPath)
-          //     .outputOptions([
-          //       "-map 0",
-          //       "-use_timeline 1",
-          //       "-use_template 1",
-          //       "-init_seg_name init_$RepresentationID$.mp4",
-          //       "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
-          //       "-f dash",
-          //     ])
-          //     .on("end", resolve)
-          //     .on("error", reject)
-          //     .run();
-          // });
-
+          // Execute MP4Box command to create DASH manifest
           await new Promise((resolve, reject) => {
             exec(
-              `MP4Box -dash 1000 -frag 1000 -rap -profile live -out "${manifestPath}" "${videoFilePath}"`,
+              `MP4Box -dash 20000 -frag 20000 -rap -profile live -out "${manifestPath}" "${videoFilePath}"`,
               (error, stdout, stderr) => {
                 if (error) {
+                  console.error(`Error generating DASH manifest: ${stderr}`);
                   return reject(`Error generating DASH manifest: ${stderr}`);
                 }
                 resolve();
@@ -195,23 +159,22 @@ console.log('videofilepath: ',videoFilePath)
             );
           });
 
-          const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}.mpd`;
-          newMedia.videofile = manifestUrl;
+          const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}/${videoFileName}.mpd`;
+          newMedia.videofile = manifestUrl; // Update with manifest URL
         }
       }
 
       const newVideo = new Video(newMedia);
+      await newVideo.save();
 
-      newVideo.save().then((savedVideo) =>
-        res.json({
-          status: 201,
-          message: "Media uploaded successfully",
-          video: savedVideo,
-        })
-      );
+      return res.json({
+        status: 200,
+        message: "Media uploaded successfully",
+        video: newVideo,
+      });
     } catch (error) {
       console.error("Error creating video:", error);
-      return res.json({
+      return res.status(500).json({
         status: 500,
         message: "Failed to create video",
       });
@@ -223,30 +186,33 @@ const getAllVideos = async (req, res) => {
   try {
     const {
       search,
-      page = 1,
-      limit = 4,
+      page,
+      limit,
       sortBy = "order",
       order = "asc",
       courseId,
       author,
+      active,
     } = req.query;
 
     const query = {};
 
+    if (active) {
+      query.active = active === "true";
+    }
+
     let courseIds = [];
-    
+
     if (search) {
       const regex = new RegExp(search, "i");
 
-      // Search in the 'title' field of the videos
       query["$or"] = [{ title: regex }];
 
-      // Search in the 'cname' field of the CourseList model
-      const courses = await Course.find({ cname: regex }, '_id');
+      const courses = await Course.find({ cname: regex }, "_id");
 
       if (courses.length) {
-        courseIds = courses.map(course => course._id);
-        query["$or"].push({ courseId: { $in: courseIds } }); // Add courseId search
+        courseIds = courses.map((course) => course._id);
+        query["$or"].push({ courseId: { $in: courseIds } });
       }
       if (author) {
         query.author = new RegExp(author, "i");
@@ -258,24 +224,18 @@ const getAllVideos = async (req, res) => {
 
     const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
-    // Pagination and Sorting
     const totalVideo = await Video.countDocuments(query);
-    const pageCount = Math.ceil(totalVideo / limit);
 
-    // Fetch videos with sorting and pagination
     const videos = await Video.find(query)
       .sort({ courseId: 1, [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
-      .populate("courseId", "cname") // Assuming 'courseId' refers to 'Course' model
-      .populate("adminId", "name") // Assuming 'adminId' refers to 'Admin' model
-      .populate("updatedBy", "name"); // Assuming 'updatedBy' refers to 'Admin' model
+      .populate("courseId", "cname")
+      .populate("adminId", "name");
 
     res.json({
       status: 200,
       videos,
-      page: parseInt(page),
-      pageCount,
       totalVideo,
     });
   } catch (error) {
@@ -288,26 +248,10 @@ const getAllVideos = async (req, res) => {
 };
 
 const getVideosByCourse = async (req, res) => {
-  // Validation for request body
-  // await body("courseId")
-  //   .notEmpty()
-  //   .withMessage("courseId is required")
-  //   .isMongoId()
-  //   .withMessage("Invalid course ID format")
-  //   .run(req);
-
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.json({
-      status: 400,
-      message: errors.errors[0].msg,
-    });
-  }
-
   const { courseId } = req.params;
-  const totalVideo = await Video.countDocuments({ courseId });
-  // const { page = 1, limit=totalVideo, search = "", sortBy = "order", order = "asc" } = req.query;
-  const { search = "", sortBy = "order", order = "asc" } = req.query;
+  const { search,  page,
+    limit, sortBy = "order", order = "asc", active } = req.query;
+
   if (!courseId) {
     return res.status(400).json({
       status: 400,
@@ -316,54 +260,428 @@ const getVideosByCourse = async (req, res) => {
   }
 
   try {
-    const course = await Course.findById(courseId).select("cname");
+    const query = { courseId }; // Start with the courseId filter
 
-    if (!course) {
-      return res.status(404).json({
-        status: 404,
-        message: "Course not found",
-      });
+    // Handle the active filter
+    if (active === "true") {
+      query.active = true; // Only active videos
+    } else if (active === "false") {
+      query.active = false; // Only inactive videos
+    }
+    // If active is not provided, it will default to showing all videos
+
+    // Handle the search filter
+    if (search) {
+      const regex = new RegExp(search, "i");
+      query["$or"] = [{ title: regex }]; // Search by title
+
+      // If you want to search by course name as well
+      const courses = await Course.find({ cname: regex }, "_id");
+      if (courses.length) {
+        const courseIds = courses.map((course) => course._id);
+        query["$or"].push({ courseId: { $in: courseIds } });
+      }
     }
 
-    // Fetch videos with pagination, filtering, and sorting
-    const videos = await Video.find({
-      courseId,
-      title: { $regex: search, $options: "i" },
-    }).sort({ [sortBy]: order });
-    // .skip((page - 1) * limit)
-    // .limit(parseInt(limit));
+    const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
-    // Check if videos are found
-    if (!videos.length) {
-      return res.json({
-        status: 404,
-        message: "No videos found for this course",
-      });
-    }
+    // Count total videos based on the query
+    const totalVideo = await Video.countDocuments(query);
 
-    // Send the fetched videos, total count, and page count as response
+    // Fetch videos based on the query
+    const videos = await Video.find(query)
+      .sort({ courseId: 1, [sortBy]: sortOrder })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .populate("courseId", "cname")
+      .populate("adminId", "name");
+
     res.json({
       status: 200,
-      courseName: course.cname,
       videos,
       totalVideo,
-      // pageCount: Math.ceil(totalVideo / limit),
     });
-  } catch (err) {
-    console.error("Server error:", err.message);
+  } catch (error) {
+    console.error("Error fetching videos:", error);
     res.json({
       status: 500,
-      message: "Server error",
-      error: err.message,
+      error: "Failed to fetch videos",
     });
   }
 };
 
+// const updateVideoDetails = (req, res) => {
+//   upload(req, res, async (err) => {
+//     if (err) {
+//       console.error("Error uploading file:", err.message);
+//       return res.json({
+//         status: 400,
+//         message: err.message,
+//       });
+//     }
+
+//     // Validation
+//     await Promise.all([
+//       body("title")
+//         .notEmpty()
+//         .withMessage("Title should be a non-empty string")
+//         .isLength({ min: 1, max: 50 })
+//         .withMessage("Video title must be between 1 and 50 characters long")
+//         .run(req),
+//       body("description")
+//         .notEmpty()
+//         .withMessage("Description should be a non-empty string")
+//         .isLength({ min: 1, max: 500 })
+//         .withMessage("Description must be between 1 and 500 characters long")
+//         .run(req),
+//       body("type")
+//         .optional()
+//         .notEmpty()
+//         .withMessage("Type is required")
+//         .isIn(["video", "document"])
+//         .withMessage("Invalid type")
+//         .run(req),
+//       body("chapter").notEmpty().withMessage("Chapter is required").run(req),
+//     ]);
+
+//     const videoId = req.params.id;
+//     if (!videoId) {
+//       return res.json({
+//         status: 400,
+//         message: "Video ID is required",
+//       });
+//     }
+
+//     const { title, description, tags, type, courseId, chapter } = req.body;
+
+//     if (!courseId || !type) {
+//       return res.json({
+//         status: 400,
+//         message: "Required fields are missing",
+//       });
+//     }
+
+//     console.log("courseId: ", courseId);
+
+//     try {
+//       const video = await Video.findById(videoId);
+//       if (!video) {
+//         return res.json({
+//           status: 404,
+//           message: "Video not found",
+//         });
+//       }
+
+//       const token = req.headers.authorization.split(" ")[1];
+//       const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+//       const adminId = decodedToken.id;
+//       const admin = await adminModel.findById(adminId);
+//       if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
+//         return res.json({
+//           status: 401,
+//           message: "Admin not found",
+//         });
+//       }
+//       const createdBy = admin.name;
+
+//       video.thumbnail = null;
+//       video.videofile = null;
+//       video.pdf = null;
+//       video.ppt = null;
+//       video.doc = null;
+
+//       video.title = title || video.title;
+//       video.description = description || video.description;
+//       video.tags = tags || video.tags;
+//       video.type = type || video.type;
+//       video.chapter = chapter || video.chapter;
+//       video.courseId = courseId || video.courseId;
+//       video.createdBy = createdBy || video.createdBy;
+
+//       if (type === "document") {
+//         if (req.files["pdf"]) {
+//           video.pdf = req.files["pdf"][0].path;
+//         }
+//         if (req.files["ppt"]) {
+//           video.ppt = req.files["ppt"][0].path;
+//         }
+//         if (req.files["doc"]) {
+//           video.doc = req.files["doc"][0].path;
+//         }
+//         if (!req.files["pdf"] && !req.files["ppt"] && !req.files["doc"]) {
+//           return res.status(400).json({
+//             status: 400,
+//             message:
+//               "Document type requires at least one document file (pdf, ppt, doc)",
+//           });
+//         }
+//       }
+
+//       if (type === "video") {
+//         if (req.files["thumbnail"]) {
+//           video.thumbnail = req.files["thumbnail"][0].path;
+//         } else {
+//           return res.json({
+//             status: 400,
+//             message: "Video type requires a thumbnail file",
+//           });
+//         }
+
+//         if (req.files["videofile"]) {
+//           video.videofile = req.files["videofile"][0].path;
+
+//           if (video.videofile) {
+//             const videoFilePath = video.videofile;
+//             const outputDir = path.join(
+//               __dirname,
+//               "../../public/videos",
+//               courseId
+//             );
+
+//             if (!fs.existsSync(outputDir)) {
+//               fs.mkdirSync(outputDir, { recursive: true });
+//             }
+
+//             const manifestPath = path.join(outputDir, "manifest.mpd");
+
+//             await new Promise((resolve, reject) => {
+//               ffmpeg(videoFilePath)
+//                 .output(manifestPath)
+//                 .outputOptions([
+//                   "-map 0",
+//                   "-use_timeline 1",
+//                   "-use_template 1",
+//                   "-init_seg_name init_$RepresentationID$.mp4",
+//                   "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
+//                   "-f dash",
+//                 ])
+//                 .on("end", resolve)
+//                 .on("error", reject)
+//                 .run();
+//             });
+
+//             const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/manifest.mpd`;
+//             video.videofile = manifestUrl;
+//           }
+//         } else {
+//           return res.json({
+//             status: 400,
+//             message: "Video type requires a video file",
+//           });
+//         }
+//       }
+
+//       console.log("Updated Video Object:", video);
+
+//       const updatedVideo = await video.save();
+//       res.json({
+//         status: 200,
+//         message: "Video updated successfully",
+//         video: updatedVideo,
+//       });
+//     } catch (err) {
+//       console.error("Database update error:", err.message);
+//       res.json({
+//         status: 500,
+//         message: "Failed to update video",
+//         error: err.message,
+//       });
+//     }
+//   });
+// };
+
+// const updateVideoDetails = (req, res) => {
+//   upload(req, res, async (err) => {
+//     if (err) {
+//       console.error("Error uploading file:", err.message);
+//       return res.status(400).json({
+//         status: 400,
+//         message: err.message,
+//       });
+//     }
+
+//     // Validation
+//     await Promise.all([
+//       body("title")
+//         .notEmpty()
+//         .withMessage("Title should be a non-empty string")
+//         .isLength({ min: 1, max: 50 })
+//         .withMessage("Video title must be between 1 and 50 characters long")
+//         .run(req),
+//       body("description")
+//         .notEmpty()
+//         .withMessage("Description should be a non-empty string")
+//         .isLength({ min: 1, max: 500 })
+//         .withMessage("Description must be between 1 and 500 characters long")
+//         .run(req),
+//       body("type")
+//         .notEmpty()
+//         .withMessage("Type is required")
+//         .isIn(["video", "document"])
+//         .withMessage("Invalid type")
+//         .run(req),
+//       body("chapter").notEmpty().withMessage("Chapter is required").run(req),
+//     ]);
+
+//     const validationErrors = validationResult(req);
+//     if (!validationErrors.isEmpty()) {
+//       return res.status(400).json({
+//         status: 400,
+//         message: validationErrors.errors[0].msg,
+//       });
+//     }
+
+//     const videoId = req.params.id;
+//     if (!videoId) {
+//       return res.status(400).json({
+//         status: 400,
+//         message: "Video ID is required",
+//       });
+//     }
+
+//     const { title, description, tags, type, courseId, chapter, fileType } = req.body;
+
+//     try {
+//       const video = await Video.findById(videoId);
+//       if (!video) {
+//         return res.status(404).json({
+//           status: 404,
+//           message: "Video not found",
+//         });
+//       }
+
+//       const token = req.headers.authorization.split(" ")[1];
+//       const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+//       const adminId = decodedToken.id;
+
+//       const admin = await adminModel.findById(adminId);
+//       if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
+//         return res.status(401).json({
+//           status: 401,
+//           message: "Admin not found",
+//         });
+//       }
+
+//       const createdBy = admin.name;
+
+//       // Update video fields
+//       video.title = title || video.title;
+//       video.description = description || video.description;
+//       video.tags = tags || video.tags;
+//       video.type = type || video.type;
+//       video.fileType = fileType || video.fileType;
+//       video.chapter = chapter || video.chapter;
+//       video.courseId = courseId || video.courseId;
+//       video.createdBy = createdBy;
+
+//       // Reset media files
+//       video.thumbnail = null;
+//       video.videofile = null;
+//       video.pdf = null;
+//       video.ppt = null;
+//       video.doc = null;
+
+//       // Handle document type updates
+//       if (type === "document") {
+//         if (req.files["pdf"]) {
+//           video.pdf = req.files["pdf"][0].path;
+//         }
+//         if (req.files["ppt"]) {
+//           video.ppt = req.files["ppt"][0].path;
+//         }
+//         if (req.files["doc"]) {
+//           video.doc = req.files["doc"][0].path;
+//         }
+//         if (!req.files["pdf"] && !req.files["ppt"] && !req.files["doc"]) {
+//           return res.status(400).json({
+//             status: 400,
+//             message: "At least one document file (pdf, ppt, doc) is required.",
+//           });
+//         }
+//       }
+
+//       // Handle video type updates
+//       if (type === "video") {
+//         if (req.files["thumbnail"]) {
+//           video.thumbnail = req.files["thumbnail"][0].path;
+//         } else {
+//           return res.status(400).json({
+//             status: 400,
+//             message: "Video type requires a thumbnail file",
+//           });
+//         }
+
+//         if (req.files["videofile"]) {
+//           video.videofile = req.files["videofile"][0].path;
+
+//           // Generate DASH manifest for video
+//           if (video.videofile) {
+//             const videoFilePath = video.videofile;
+//             const videoFileName = path.basename(videoFilePath, path.extname(videoFilePath));
+//             const outputDir = path.join(
+//               __dirname,
+//               "../../public/videos",
+//               courseId,
+//               chapter
+//             );
+
+//             // Ensure output directory exists
+//             if (!fs.existsSync(outputDir)) {
+//               fs.mkdirSync(outputDir, { recursive: true });
+//             }
+
+//             const manifestPath = path.join(outputDir, `${videoFileName}.mpd`);
+
+//             await new Promise((resolve, reject) => {
+//               exec(
+//                 `MP4Box -dash 20000 -frag 20000 -rap -profile live -out "${manifestPath}" "${videoFilePath}"`,
+//                 (error, stdout, stderr) => {
+//                   if (error) {
+//                     console.error(`Error generating DASH manifest: ${stderr}`);
+//                     return reject(`Error generating DASH manifest: ${stderr}`);
+//                   }
+//                   resolve();
+//                 }
+//               );
+//             });
+
+//             const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}.mpd`;
+//             video.videofile = manifestUrl; // Update with manifest URL
+//           }
+//         } else {
+//           return res.status(400).json({
+//             status: 400,
+//             message: "Video type requires a video file",
+//           });
+//         }
+//       }
+
+//       console.log("Updated Video Object:", video);
+
+//       // Save the updated video details
+//       const updatedVideo = await video.save();
+//       return res.json({
+//         status: 200,
+//         message: "Video updated successfully",
+//         video: updatedVideo,
+//       });
+//     } catch (error) {
+//       console.error("Database update error:", error.message);
+//       return res.status(500).json({
+//         status: 500,
+//         message: "Failed to update video",
+//         error: error.message,
+//       });
+//     }
+//   });
+// };
+
 const updateVideoDetails = (req, res) => {
+  console.log("hii")
   upload(req, res, async (err) => {
     if (err) {
       console.error("Error uploading file:", err.message);
-      return res.json({
+      return res.status(400).json({
         status: 400,
         message: err.message,
       });
@@ -384,58 +702,43 @@ const updateVideoDetails = (req, res) => {
         .withMessage("Description must be between 1 and 500 characters long")
         .run(req),
       body("type")
-        .optional()
         .notEmpty()
         .withMessage("Type is required")
         .isIn(["video", "document"])
         .withMessage("Invalid type")
         .run(req),
-        body("chapter")
-        .notEmpty()
-        .withMessage("Chapter is required")
-        .run(req),
-      // body("courseId")
-      //   .optional()
-      //   .notEmpty()
-      //   .withMessage("Course ID is required")
-      //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
-      //   .withMessage("Invalid Course ID")
-      //   .run(req),
-      // body("createdBy")
-      //   .optional()
-      //   .notEmpty()
-      //   .withMessage("CreatedBy is required")
-      //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
-      //   .withMessage("Invalid CreatedBy ID")
-      //   .run(req),
+      body("chapter").notEmpty().withMessage("Chapter is required").run(req),
     ]);
 
-    // Extract video ID from the request parameters
+    const validationErrors = validationResult(req);
+    if (!validationErrors.isEmpty()) {
+      return res.status(400).json({
+        status: 400,
+        message: validationErrors.errors[0].msg,
+      });
+    }
+
     const videoId = req.params.id;
     if (!videoId) {
-      return res.json({
+      return res.status(400).json({
         status: 400,
         message: "Video ID is required",
       });
     }
 
-    // Extract updated fields from the request body
-    const { title, description, tags, type, courseId, chapter } = req.body;
-
-    if (!courseId || !type) {
-      return res.json({
-        status: 400,
-        message: "Required fields are missing",
-      });
-    }
+    const { title, description, tags, type, courseId, chapter, fileType, videoURL } = req.body;
 
     console.log("courseId: ", courseId)
 
+    const demoVideofile =
+      req.files && req.files.demoVideofile
+        ? req.files.demoVideofile[0].path
+        : null;
+
     try {
-      // Find the video document by ID
       const video = await Video.findById(videoId);
       if (!video) {
-        return res.json({
+        return res.status(404).json({
           status: 404,
           message: "Video not found",
         });
@@ -444,72 +747,109 @@ const updateVideoDetails = (req, res) => {
       const token = req.headers.authorization.split(" ")[1];
       const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
       const adminId = decodedToken.id;
+
       const admin = await adminModel.findById(adminId);
       if (!admin || !mongoose.Types.ObjectId.isValid(adminId)) {
-        return res.json({
+        return res.status(401).json({
           status: 401,
           message: "Admin not found",
         });
       }
+
       const createdBy = admin.name;
-      
-      video.thumbnail = null;
-      video.videofile = null;
-      video.pdf = null;
-      video.ppt = null;
-      video.doc = null;
 
-      // UpDate the video document with new data
-      video.title = title || video.title;
-      video.description = description || video.description;
-      video.tags = tags || video.tags;
-      video.type = type || video.type;
-      video.chapter = chapter || video.chapter;
-      video.courseId = courseId || video.courseId;
-      video.createdBy = createdBy || video.createdBy;
+      // Handle deletion of existing media files before updating
+      const deleteFile = (filePath) => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      };
 
-      // Handle file upDates based on type
-      if (type === "document") {
-        if (req.files["pdf"]) {
-          video.pdf = req.files["pdf"][0].path;
+      if (req.files["videofile"]) {
+        if (video.videoURL) {
+          deleteFile(video.videoURL); // Delete the file from the filesystem
+          video.videoURL = null; // Clear the videoURL in the database
         }
-        if (req.files["ppt"]) {
-          video.ppt = req.files["ppt"][0].path;
-        }
-        if (req.files["doc"]) {
-          video.doc = req.files["doc"][0].path;
-        }
-        if (!req.files["pdf"] && !req.files["ppt"] && !req.files["doc"]) {
-          return res.status(400).json({
-            status: 400,
-            message:
-              "Document type requires at least one document file (pdf, ppt, doc)",
-          });
+        deleteFile(video.pdf);
+        deleteFile(video.ppt);
+        deleteFile(video.doc);
+        deleteFile(video.demoVideofile);
+        video.pdf = null;
+        video.ppt = null;
+        video.doc = null;
+      }
+
+      if (videoURL) {
+        // If a video file is already set, delete the associated file
+        if (video.videofile) {
+          deleteFile(video.thumbnail);
+          deleteFile(video.videofile);
+          video.videofile = null;
         }
       }
 
-      if (type === "video") {
-     
-
-        if (req.files["thumbnail"]) {
-          video.thumbnail = req.files["thumbnail"][0].path;
-        } else {
-          return res.json({
-            status: 400,
-            message: "Video type requires a thumbnail file",
-          });
+      // Check if a document file is being added
+      if (req.files["pdf"] || req.files["ppt"] || req.files["doc"]) {
+        // Delete existing video files
+        // if (video.thumbnail) deleteFile(video.thumbnail);
+        if (video.videofile) {
+          deleteFile(video.videofile);
+          deleteFile(video.thumbnail);
+          deleteFile(video.videoURL);
+          deleteFile(video.demoVideofile);
+          video.videofile = null;
+          video.demoVideofile = null;
+          video.thumbnail = null;
         }
+        // Also delete demo video file if it exists
+        // if (video.demoVideofile) {
+        //   deleteFile(video.demoVideofile);
+        //   video.demoVideofile = null; // Update the database to reflect deletion
+        // }
+      }
 
+      // Update video fields
+      video.title = title || video.title;
+      video.description = description || video.description;
+      video.tags = tags || video.tags;
+      video.demoVideofile = demoVideofile || video.demoVideofile;
+      video.videoURL = videoURL || video.videoURL;
+      video.type = type || video.type;
+      video.fileType = fileType || video.fileType;
+      video.chapter = chapter || video.chapter;
+      video.courseId = courseId || video.courseId;
+      video.createdBy = createdBy;
+
+      // Handle document type updates
+      if (type === "document") {
+        if (req.files["pdf"]) {
+          video.pdf = req.files["pdf"][0].path; // Update PDF if provided
+        }
+        if (req.files["ppt"]) {
+          video.ppt = req.files["ppt"][0].path; // Update PPT if provided
+        }
+        if (req.files["doc"]) {
+          video.doc = req.files["doc"][0].path; // Update DOC if provided
+        }
+      }
+
+      // Handle video type updates
+      if (type === "video") {
+        if (req.files["thumbnail"]) {
+          video.thumbnail = req.files["thumbnail"][0].path; // Update thumbnail if provided
+        }
         if (req.files["videofile"]) {
-          video.videofile = req.files["videofile"][0].path;
+          video.videofile = req.files["videofile"][0].path; // Update video file if provided
 
-          // Generate DASH manifest using FFmpeg
+          // Generate DASH manifest for video
           if (video.videofile) {
             const videoFilePath = video.videofile;
+            const videoFileName = path.basename(videoFilePath, path.extname(videoFilePath));
             const outputDir = path.join(
               __dirname,
               "../../public/videos",
-              courseId
+              courseId,
+              chapter
             );
 
             // Ensure output directory exists
@@ -517,50 +857,42 @@ const updateVideoDetails = (req, res) => {
               fs.mkdirSync(outputDir, { recursive: true });
             }
 
-            const manifestPath = path.join(outputDir, "manifest.mpd");
+            const manifestPath = path.join(outputDir, `${videoFileName}.mpd`);
 
             await new Promise((resolve, reject) => {
-              ffmpeg(videoFilePath)
-                .output(manifestPath)
-                .outputOptions([
-                  "-map 0",
-                  "-use_timeline 1",
-                  "-use_template 1",
-                  "-init_seg_name init_$RepresentationID$.mp4",
-                  "-media_seg_name chunk_$RepresentationID$_$Number$.m4s",
-                  "-f dash",
-                ])
-                .on("end", resolve)
-                .on("error", reject)
-                .run();
+              exec(
+                `MP4Box -dash 20000 -frag 20000 -rap -profile live -out "${manifestPath}" "${videoFilePath}"`,
+                (error, stdout, stderr) => {
+                  if (error) {
+                    console.error(`Error generating DASH manifest: ${stderr}`);
+                    return reject(`Error generating DASH manifest: ${stderr}`);
+                  }
+                  resolve();
+                }
+              );
             });
 
-            const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/manifest.mpd`;
-            video.videofile = manifestUrl;
+            const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}.mpd`;
+            video.videofile = manifestUrl; // Update with manifest URL
           }
-        } else {
-          return res.json({
-            status: 400,
-            message: "Video type requires a video file",
-          });
         }
       }
 
       console.log("Updated Video Object:", video);
 
-      // Save the upDated video document
+      // Save the updated video details
       const updatedVideo = await video.save();
-      res.json({
+      return res.json({
         status: 200,
         message: "Video updated successfully",
         video: updatedVideo,
       });
-    } catch (err) {
-      console.error("Database update error:", err.message);
-      res.json({
+    } catch (error) {
+      console.error("Database update error:", error.message);
+      return res.status(500).json({
         status: 500,
         message: "Failed to update video",
-        error: err.message,
+        error: error.message,
       });
     }
   });
@@ -582,6 +914,7 @@ const coursechapters = async (req, res) => {
 
 const deleteVideo = async (req, res) => {
   const videoId = req.params.id;
+  const { courseId, chapter } = req.body;
 
   if (!videoId) {
     return res.status(400).json({
@@ -591,7 +924,6 @@ const deleteVideo = async (req, res) => {
   }
 
   try {
-    // Find the video document by ID
     const video = await Video.findById(videoId);
     if (!video) {
       return res.status(404).json({
@@ -600,87 +932,85 @@ const deleteVideo = async (req, res) => {
       });
     }
 
-    // Delete associated thumbnail if it exists
-    if (video.thumbnail) {
-      const thumbnailPath = path.join(
-        __dirname,
-        "../../",
-        video.thumbnail // Assuming 'video.thumbnail' stores 'thumbnails/filename.png'
-      );
-      if (fs.existsSync(thumbnailPath)) {
-        await unlinkFile(thumbnailPath);
-        console.log(`Thumbnail deleted: ${thumbnailPath}`);
+    const courseId = video.courseId.toString();
+    const chapter = video.chapter;
 
-        // Check if the file still exists
-        if (!fs.existsSync(thumbnailPath)) {
-          console.log("Thumbnail successfully deleted.");
-        } else {
-          console.log("Thumbnail still exists after deletion attempt.");
-        }
-      } else {
-        console.log(`Thumbnail not found at path: ${thumbnailPath}`);
-      }
+    const enrollmentCount = await Enrollment.countDocuments({ courseId });
+    if (enrollmentCount > 0) {
+      return res.status(400).json({
+        status: 400,
+        error: "Cannot delete video. There are users enrolled in this course.",
+      });
     }
 
-    // Delete associated video file if it exists
-    if (video.videofile) {
-      const videoUrl = new URL(video.videofile); // Parse the URL to get the file path
-      const videoPath = path.join(
-        __dirname,
-        "../../public",
-        videoUrl.pathname.replace("/public/", "") // Removing the /public/ part from the URL
-      );
-      if (fs.existsSync(videoPath)) {
-        await unlinkFile(videoPath);
-        console.log(`Video file deleted: ${videoPath}`);
-
-        // Check if the file still exists
-        if (!fs.existsSync(videoPath)) {
-          console.log("Video file successfully deleted.");
-        } else {
-          console.log("Video file still exists after deletion attempt.");
-        }
+    
+    // Function to delete a file if it exists
+    const deleteFile = (filePath) => {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`Deleted: ${filePath}`);
       } else {
-        console.log(`Video file not found at path: ${videoPath}`);
+        console.log(`File not found: ${filePath}`);
       }
-    }
+    };
+
+    const deleteDirectory = (dirPath) => {
+      if (fs.existsSync(dirPath)) {
+        fs.rmdirSync(dirPath, { recursive: true });
+        console.log(`Deleted directory: ${dirPath}`);
+      } else {
+        console.log(`Directory not found: ${dirPath}`);
+      }
+    };
 
     if (video.pdf) {
+      console.log("PDF: ", video.pdf)
       const pdfPath = path.join(video.pdf);
-      if (fs.existsSync(pdfPath)) {
-        await unlinkFile(pdfPath);
-        console.log(`PDF file deleted: ${pdfPath}`);
-      } else {
-        console.log(`PDF file not found at path: ${pdfPath}`);
-      }
+      deleteFile(pdfPath);
     }
 
-    // Delete associated PPT file if it exists
     if (video.ppt) {
       const pptPath = path.join(video.ppt);
-      if (fs.existsSync(pptPath)) {
-        await unlinkFile(pptPath);
-        console.log(`PPT file deleted: ${pptPath}`);
-      } else {
-        console.log(`PPT file not found at path: ${pptPath}`);
-      }
+      deleteFile(pptPath);
     }
 
-    // Delete associated document file if it exists
     if (video.doc) {
-      const documentPath = path.join(video.doc);
-      if (fs.existsSync(documentPath)) {
-        await unlinkFile(documentPath);
-        console.log(`Document file deleted: ${documentPath}`);
-      } else {
-        console.log(`Document file not found at path: ${documentPath}`);
-      }
+      const docPath = path.join(video.doc);
+      deleteFile(docPath);
     }
 
-    // Delete the video document from the database
+    // Construct the path to the video folder
+    
+
+    // Delete associated files
+    if (video.thumbnail) {
+      deleteFile(video.thumbnail);
+    }
+
+    if (video.videofile) {
+      const videoFolderPath = path.join(
+        __dirname,
+        "../../public/videos",
+        courseId,
+        chapter,
+        path.basename(video.videofile, path.extname(video.videofile)) // Use the video name as the folder name
+      );
+  
+      // Delete the video folder
+      deleteDirectory(videoFolderPath);
+      deleteFile(video.videofile);
+    }
+
+    if (video.demoVideofile) {
+      deleteFile(video.demoVideofile);
+    }
+
+    
+
+    // Finally, delete the video document from the database
     await Video.findByIdAndDelete(videoId);
 
-    res.json({ message: "Video deleted successfully" });
+    res.json({ message: "Video and associated files deleted successfully" });
   } catch (error) {
     console.error("Error deleting video or associated files:", error);
     res.status(500).json({
@@ -701,7 +1031,6 @@ const updateVideoOrder = async (req, res) => {
   }
 
   try {
-    // Loop through each video and upDate its order
     for (const video of videos) {
       await Video.updateOne(
         { _id: video._id },
@@ -751,7 +1080,6 @@ const updateVideoProgress = async (req, res) => {
   try {
     const { userId, videoId, courseId, progress } = req.body;
 
-    // ValiDate the inputs
     if (!userId || !videoId || !courseId || typeof progress !== "number") {
       return res.status(400).json({
         status: 400,
@@ -759,7 +1087,6 @@ const updateVideoProgress = async (req, res) => {
       });
     }
 
-    // Check if progress is within 0-100
     if (progress < 0 || progress > 100) {
       return res.status(400).json({
         status: 400,
@@ -767,12 +1094,10 @@ const updateVideoProgress = async (req, res) => {
       });
     }
 
-    // Find or create a VideoProgress entry
     let videoProgress = await VideoProgress.findOne({ userId, videoId });
 
     if (videoProgress) {
       if (progress > videoProgress.progress) {
-        // UpDate the existing progress
         videoProgress.progress = progress;
         videoProgress.completed = progress === 100;
         videoProgress.updatedAt = Date.now();
@@ -784,7 +1109,6 @@ const updateVideoProgress = async (req, res) => {
         });
       }
     } else {
-      // Create a new progress entry
       videoProgress = new VideoProgress({
         userId,
         videoId,

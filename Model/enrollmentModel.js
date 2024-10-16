@@ -9,7 +9,7 @@ const enrollmentSchema = new Schema({
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "userModel", 
+    ref: "userModel",
     required: true,
   },
   enrolledAt: {
@@ -18,7 +18,7 @@ const enrollmentSchema = new Schema({
   },
   percentageCompleted: {
     type: Number,
-    default: 0,  // Start with 0% completion
+    default: 0,
   },
 });
 

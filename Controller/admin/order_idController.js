@@ -17,11 +17,6 @@ const createOrder = async (req, res) => {
   try {
     const { courseId, userId, amount, currency } = req.body;
 
-    console.log("courseId:", courseId);
-    console.log("userId:", userId);
-    console.log("amount:", amount);
-    console.log("currency:", currency);
-
     if (!courseId || !userId) {
       return res
         .status(400)
@@ -137,14 +132,13 @@ const getallorders = async (req, res) => {
     if (search) {
       const regex = new RegExp(search, "i");
 
-      // Check if the search term is a number (for amount search)
       const searchAmount = !isNaN(search) ? Number(search) : null;
 
       matchStage["$or"] = [
-        { "user.name": regex },           // Search by user's name
-        { "course.cname": regex },        // Search by course name
-        { razorpayOrderId: regex },       // Search by Razorpay Order ID
-        ...(searchAmount !== null ? [{ amount: searchAmount }] : []), // Search by amount if it's a number
+        { "user.name": regex },
+        { "course.cname": regex },
+        { razorpayOrderId: regex },
+        ...(searchAmount !== null ? [{ amount: searchAmount }] : []),
       ];
     }
 
@@ -304,7 +298,6 @@ const verifyPayment = async (req, res) => {
       courseId,
       key_secret = "2BchtClGW9UJJd6HmHpa898i",
     } = req.body;
-
     if (!key_secret) {
       return res.json({
         status: 500,
@@ -327,18 +320,35 @@ const verifyPayment = async (req, res) => {
     }
 
     const course = await Course.findById(courseId);
-    const user = await userModel.findById(customerDetails.userId);
+    let user = await userModel.findById(customerDetails.userId);
 
-    if (!course || !user) {
+    if (!course) {
       return res.status(404).json({
         success: false,
-        message: "Course or User not found",
+        message: "Course not found",
       });
     }
 
-    const amountWithoutGst = customerDetails.amount;
+    if (!user) {
+      user = new userModel({
+        id: customerDetails.userId,
+        name: customerDetails.name,
+        email: customerDetails.email,
+        city: customerDetails.city,
+        phoneNumber: customerDetails.mobile,
+      });
+      await user.save();
+    } else {
+      user.name = customerDetails.name;
+      user.email = customerDetails.email;
+      user.city = customerDetails.city;
+      await user.save();
+    }
+
+    const totalPaidAmount = customerDetails.amount;
     const gstPercentage = course.courseGst || 0;
-    const totalGst = (amountWithoutGst * gstPercentage) / 100;
+    const totalGst = (totalPaidAmount * gstPercentage) / 100;
+    const amountWithoutGst = totalPaidAmount - totalGst;
 
     let cgst = 0;
     let sgst = 0;
@@ -352,8 +362,6 @@ const verifyPayment = async (req, res) => {
       igst = totalGst;
     }
 
-    const totalPaidAmount = amountWithoutGst + totalGst;
-
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, "0");
@@ -361,7 +369,6 @@ const verifyPayment = async (req, res) => {
     const currentYearMonth = `${year}${month}`;
     const invoicePrefix = `COS-${currentYearMonth}`;
 
-    // Count how many invoices have been created for this month
     const invoiceCount = await CoursePurchase.countDocuments({
       invoiceNumber: new RegExp(`^${invoicePrefix}`),
     });
@@ -373,11 +380,12 @@ const verifyPayment = async (req, res) => {
 
     const coursePurchase = new CoursePurchase({
       courseId,
+      courseName: course.cname,
       userId: customerDetails.userId,
       transactionId: razorpayPaymentId,
       customerName: customerDetails.name,
       customerEmail: customerDetails.email,
-      mobileNumber: customerDetails.mobile,
+      mobileNumber: user.phoneNumber,
       customerCity: customerDetails.city,
       amountWithoutGst,
       cgst,
@@ -419,7 +427,7 @@ const verifyPayment = async (req, res) => {
     
     🔑 Enrollment Details:
     - Course Name: ${course.cname}
-    - Purchase Date: ${customerDetails.transactionDate}
+    - Purchase Date: ${coursePurchase.transactionDate}
     - Transaction ID: ${razorpayPaymentId}
     - Total Amount Paid: ₹${totalPaidAmount}
     - Invoice Number: ${invoiceNumber}
@@ -456,14 +464,8 @@ const verifyPayment = async (req, res) => {
     
     We can’t wait to see what you’ll achieve with the knowledge you’ll gain from "${course.cname}". Happy learning!
     
-    Warm regards,
-    
-    [Your Full Name]
-    [Your Position]
-    Garbhsanskar Guru
-    [Company Contact Information]
-    `
-    };    
+    `,
+    };
 
     await transporter.sendMail(mailOptions);
 
@@ -533,22 +535,34 @@ const getAllCoursePurchases = async (req, res) => {
       limit = 4,
       sortBy = "transactionDate",
       order = "desc",
+      userId,
     } = req.query;
 
     const query = {};
-    
+
+    if (userId && userId !== "null") {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({
+          status: 400,
+          message: "Invalid user ID",
+        });
+      }
+      query.userId = userId;
+    }
+
     if (search) {
       const regex = new RegExp(search, "i");
 
-      // Check if the search term is a number (for mobileNumber and totalPaidAmount search)
       const searchNumber = !isNaN(search) ? Number(search) : null;
 
       query["$or"] = [
-        { customerName: regex },          // Search by customer name
-        { customerEmail: regex },         // Search by customer email
-        { transactionId: regex },         // Search by transaction ID
-        { invoiceNumber: regex },         // Search by invoice number
-        ...(searchNumber !== null ? [{ mobileNumber: searchNumber }, { totalPaidAmount: searchNumber }] : []), // Search by mobile number and total paid amount if the search is a number
+        { customerName: regex },
+        { customerEmail: regex },
+        { transactionId: regex },
+        { invoiceNumber: regex },
+        ...(searchNumber !== null
+          ? [{ mobileNumber: searchNumber }, { totalPaidAmount: searchNumber }]
+          : []),
       ];
     }
 
@@ -558,25 +572,14 @@ const getAllCoursePurchases = async (req, res) => {
     const pageCount = Math.ceil(totalPayments / limit);
 
     const payments = await CoursePurchase.find(query)
-      // .populate("courseId", "cname")
-      // .populate("userId", "name")
-      // .populate("userId", "name")
-      // .sort({ transactionDate: -1 })
       .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
       .exec();
 
     res.json({
-      // payments: CoursePurchase.map((payment) => ({
-      //   ...payment._doc,
-      //   userName: payment.userId.name,
-      //   courseName: payment.courseId.cname,
-      // })),
       payments: payments.map((payment) => ({
         ...payment._doc,
-        userName: payment.userId.name,
-        courseName: payment.courseId,
       })),
       page: parseInt(page),
       pageCount,
@@ -639,7 +642,6 @@ const getEnrolledCourses = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // ValiDate the userId
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({
         status: 400,
@@ -647,7 +649,6 @@ const getEnrolledCourses = async (req, res) => {
       });
     }
 
-    // Find all enrollments for the user
     const enrollments = await Enrollment.find({ userId });
 
     if (enrollments.length === 0) {
@@ -657,10 +658,8 @@ const getEnrolledCourses = async (req, res) => {
       });
     }
 
-    // Extract courseIds from the enrollments
-    const courseIds = enrollments.map(enrollment => enrollment.courseId);
+    const courseIds = enrollments.map((enrollment) => enrollment.courseId);
 
-    // Fetch course details
     const courses = await Course.find({ _id: { $in: courseIds } });
 
     return res.status(200).json({
@@ -676,7 +675,6 @@ const getEnrolledCourses = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createOrder,
   getOrderById,
@@ -688,5 +686,5 @@ module.exports = {
   coursePurchasetoggleButton,
   deleteCoursePurchase,
   initiateRefund,
-  getEnrolledCourses
+  getEnrolledCourses,
 };

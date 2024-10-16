@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const User = require("../Model/userModel");
 const Course = require("../Model/courseModel");
 
-// Middleware to check if the user is logged in
 const authenticateUser = async (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
 
@@ -16,7 +15,7 @@ const authenticateUser = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId; // Assuming your JWT contains the userId
+    req.userId = decoded.userId;
     const user = await User.findById(req.userId);
     if (!user) {
       return res.json({
@@ -33,7 +32,6 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-// Middleware to valiDate courseId
 const valiDateCourse = async (req, res, next) => {
   const { courseId } = req.body;
 
@@ -61,7 +59,6 @@ const valiDateCourse = async (req, res, next) => {
   }
 };
 
-// Combined validation function
 const valiDateRequest = async (req, res, next) => {
   await authenticateUser(req, res, async () => {
     await valiDateCourse(req, res, next);

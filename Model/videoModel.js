@@ -19,39 +19,28 @@ const videoSchema = new Schema(
       type: String,
       required: true,
     },
+    demoVideofile: {
+      type: String,
+    },
     thumbnail: {
       type: String,
       default: null,
-      // required: function() {
-      //   return this.typev === 'video';
-      // },
     },
     videofile: {
       type: String,
-      // required: function() {
-      //   return this.typev === 'video';
-      // },
     },
     videoURL: {
       type: String,
+      default: null,
     },
     pdf: {
       type: String,
-      // required: function() {
-      //   return this.typev === 'pdf';
-      // },
     },
     ppt: {
       type: String,
-      // required: function() {
-      //   return this.typev === 'pdf';
-      // },
     },
     doc: {
       type: String,
-      // required: function() {
-      //   return this.typev === 'pdf';
-      // },
     },
     tags: {
       type: [String],
@@ -59,15 +48,18 @@ const videoSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ['video', 'document'],
+      enum: ["video", "document"],
+    },
+    fileType: {
+      type: String,
     },
     active: {
       type: Boolean,
       default: true,
     },
-    order: { 
-      type: Number, 
-      default: 0 
+    order: {
+      type: Number,
+      default: 0,
     },
     chapter: {
       type: String,
@@ -81,7 +73,7 @@ const videoSchema = new Schema(
     },
     updatedBy: {
       type: String,
-      ref: 'admin'
+      ref: "admin",
     },
   },
   { timestamps: true }

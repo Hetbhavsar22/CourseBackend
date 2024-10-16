@@ -16,12 +16,10 @@ const app = express();
 const PORT = process.env.PORT;
 const dbString = process.env.DB_STRING;
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
-// MongoDB connection
 mongoose
   .connect(dbString, {
     useNewUrlParser: true,
@@ -30,7 +28,6 @@ mongoose
   .then(() => {
     console.log("Connected to MongoDB");
 
-    // Start server after MongoDB connection is established
     app.listen(PORT, () => {
       console.log(`Server started at port ${PORT}`);
     });
@@ -39,13 +36,11 @@ mongoose
     console.error("MongoDB connection error:", error);
   });
 
-// Use routes
 app.use("/admin", adminRoutes);
 app.use("/user", userRoutes);
 
 app.use("/public", express.static(path.join(__dirname, "public")));
 
-// Additional route example
 app.get("/getAdminById", async (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -86,7 +81,6 @@ app.get("/getAdminById", async (req, res) => {
   }
 });
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.send(

@@ -8,25 +8,20 @@ const UserSchema = new Schema(
     },
 
     email: {
-      type: String
+      type: String,
     },
 
     country_code: {
       type: Number,
     },
 
-    // city: {
-    //   type: String,
-    // },
+    city: {
+      type: String,
+    },
 
     phoneNumber: {
       type: Number,
     },
-
-    // profile_image: {
-    //   type: String,
-    //   default: "/images/default-avatar.jpg",
-    // },
 
     otp: {
       type: String,
@@ -45,7 +40,7 @@ const UserSchema = new Schema(
       type: Number,
       default: null,
     },
-    
+
     verification_token: {
       type: String,
     },

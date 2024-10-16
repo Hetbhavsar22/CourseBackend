@@ -19,7 +19,7 @@ const videoProgressSchema = new Schema(
       required: true,
     },
     progress: {
-      type: Number, // store the progress in percentage (e.g., 50 for 50%)
+      type: Number,
       required: true,
     },
     completed: {

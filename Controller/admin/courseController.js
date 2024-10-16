@@ -32,8 +32,8 @@ const createCourse = async (req, res) => {
         body("cname")
           .notEmpty()
           .withMessage("Course name is required")
-          .isLength({ min: 1, max: 50 })
-          .withMessage("Course name must be between 1 and 50 characters long")
+          .isLength({ min: 1, max: 255 })
+          .withMessage("Course name must be between 1 and 255 characters long")
           .custom((value) => {
             const specialCharRegex = /[^a-zA-Z0-9\s]/;
             if (specialCharRegex.test(value)) {
@@ -47,15 +47,15 @@ const createCourse = async (req, res) => {
         body("totalVideo")
           .notEmpty()
           .withMessage("Total video count is required")
-          .isInt({ min: 1 }) // Ensure at least 1 video
+          .isInt({ min: 1 })
           .withMessage("Total video count must be a positive integer")
           .run(req),
-        body("hours")
-          .notEmpty()
-          .withMessage("Total hours are required")
-          .isFloat({ min: 1 }) // Ensure at least 1 hour
-          .withMessage("Hours must be a positive number")
-          .run(req),
+        // body("hours")
+        //   .notEmpty()
+        //   .withMessage("Total hours are required")
+        //   .isFloat({ min: 1 })
+        //   .withMessage("Hours must be a positive number")
+        //   .run(req),
         body("author")
           .notEmpty()
           .withMessage("Author name is required")
@@ -74,7 +74,7 @@ const createCourse = async (req, res) => {
         body("shortDescription")
           .notEmpty()
           .withMessage("Short description is required")
-          .isLength({ min: 1, max: 400 })
+          .isLength({ min: 1, max: 407 })
           .withMessage("Description must be between 1 and 400 characters long")
           .run(req),
         body("longDescription")
@@ -88,7 +88,7 @@ const createCourse = async (req, res) => {
         body("price")
           .notEmpty()
           .withMessage("Price is required")
-          .isFloat({ min: 0 }) // Ensure price is non-negative
+          .isFloat({ min: 0 })
           .withMessage("Price must be a positive number")
           .custom((value) => {
             if (value > 500000) {
@@ -100,13 +100,13 @@ const createCourse = async (req, res) => {
         body("dprice")
           .notEmpty()
           .withMessage("Display Price is required")
-          .isFloat({ min: 0 }) // Ensure display price is non-negative
+          .isFloat({ min: 0 })
           .withMessage("Display Price must be a positive number")
           .run(req),
         body("courseGst")
           .notEmpty()
           .withMessage("Course GST is required")
-          .isFloat({ min: 0, max: 100 }) // Ensure GST is between 0 and 100
+          .isFloat({ min: 0, max: 100 })
           .withMessage("GST must be between 0 and 100.")
           .run(req),
         body("chapters")
@@ -156,10 +156,10 @@ const createCourse = async (req, res) => {
           ? req.files.courseImage[0].path
           : null;
 
-      const demoVideofile =
-        req.files && req.files.demoVideofile
-          ? req.files.demoVideofile[0].path
-          : null;
+      // const demoVideofile =
+      //   req.files && req.files.demoVideofile
+      //     ? req.files.demoVideofile[0].path
+      //     : null;
 
       const existingCourse = await Course.findOne({ cname });
       if (existingCourse) {
@@ -185,7 +185,7 @@ const createCourse = async (req, res) => {
         cname,
         totalVideo,
         courseImage,
-        demoVideofile,
+        // demoVideofile,
         hours,
         author,
         shortDescription,
@@ -224,8 +224,8 @@ const getAllCourses = async (req, res) => {
   try {
     const {
       search,
-      page = 1,
-      limit = 4,
+      page,
+      limit,
       sortBy = "createdAt",
       order = "desc",
       userId,
@@ -241,12 +241,20 @@ const getAllCourses = async (req, res) => {
       percentage,
       createdBy,
       createdAt,
+      active,
+      deleted = false,
     } = req.query;
 
-    // Initialize query object
     const query = {};
 
-    // If 'search' is present, apply a general search across multiple fields
+    // if (deleted) {
+    //   query.deleted = deleted === "flse";
+    // }
+    
+    if (active) {
+      query.active = active === "true";
+    }
+
     if (search) {
       query.$or = [
         { cname: new RegExp(search, "i") },
@@ -256,12 +264,11 @@ const getAllCourses = async (req, res) => {
       ];
     }
 
-    // Additional field-specific filters
     if (cname) {
       query.cname = new RegExp(cname, "i");
     }
     if (price) {
-      query.price = price; // Assuming exact match; use ranges if needed
+      query.price = price;
     }
     if (dprice) {
       query.dprice = dprice;
@@ -300,25 +307,19 @@ const getAllCourses = async (req, res) => {
 
     const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
-
-    // Pagination and Sorting
     const totalCourses = await Course.countDocuments(query);
-    const pageCount = Math.ceil(totalCourses / limit);
 
-    // Fetch courses with sorting and pagination
     const courses = await Course.find(query)
       .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-    // Check if `userId` is provided to determine enrollment status
     if (userId) {
       const enrollments = await Enrollment.find({ userId });
       const enrolledCourseIds = enrollments.map((enrollment) =>
         enrollment.courseId.toString()
       );
 
-      // Add enrollment status to each course
       const coursesWithEnrollmentStatus = courses.map((course) => ({
         _id: course._id,
         cname: course.cname,
@@ -341,11 +342,8 @@ const getAllCourses = async (req, res) => {
       });
     }
 
-    // Return course data if userId is not provided
     res.json({
       courses,
-      page: parseInt(page),
-      pageCount,
       totalCourses,
     });
   } catch (error) {
@@ -356,24 +354,8 @@ const getAllCourses = async (req, res) => {
   }
 };
 
-
 const getCourseById = async (req, res) => {
   try {
-    // await param("id")
-    //   .notEmpty()
-    //   .withMessage("Course ID is required")
-    //   .custom((value) => mongoose.Types.ObjectId.isValid(value))
-    //   .withMessage("Invalid course ID")
-    //   .run(req);
-
-    const validationErrorObj = validationResult(req);
-    if (!validationErrorObj.isEmpty()) {
-      return res.json({
-        status: 401,
-        message: validationErrorObj.errors[0].msg,
-      });
-    }
-
     const { id } = req.params;
     const userId = req.body.userId;
 
@@ -399,18 +381,17 @@ const getCourseById = async (req, res) => {
       });
     }
 
-    // Check if user is enrolled in the course
     let isEnrolled = false;
     if (userId) {
       const enrollment = await Enrollment.findOne({ userId, courseId: id });
-      isEnrolled = !!enrollment; // Set to true if enrollment exists
+      isEnrolled = !!enrollment;
     }
 
     return res.json({
       status: 200,
       data: {
-        ...course._doc, // Spread the course details
-        isEnrolled, // Include enrollment status
+        ...course._doc,
+        isEnrolled,
       },
     });
   } catch (error) {
@@ -436,8 +417,8 @@ const updateCourse = async (req, res) => {
       body("cname")
         .notEmpty()
         .withMessage("Course name is required")
-        .isLength({ min: 1, max: 50 })
-        .withMessage("Course name must be between 1 and 50 characters long")
+        .isLength({ min: 1, max: 255 })
+        .withMessage("Course name must be between 1 and 255 characters long")
         .custom((value) => {
           const specialCharRegex = /[^a-zA-Z0-9\s]/;
           if (specialCharRegex.test(value)) {
@@ -452,21 +433,21 @@ const updateCourse = async (req, res) => {
       body("totalVideo")
         .notEmpty()
         .withMessage("Total Videos cannot be empty")
-        .isInt({ min: 1 }) // Ensure at least 1 video
+        .isInt({ min: 1 })
         .withMessage("Total video count must be a positive integer")
         .run(req),
 
-      body("hours")
-        .notEmpty()
-        .withMessage("Total Hours cannot be empty")
-        .isFloat({ min: 1 }) // Ensure at least 1 hour
-        .withMessage("Hours must be a positive number")
-        .run(req),
+      // body("hours")
+      //   .notEmpty()
+      //   .withMessage("Total Hours cannot be empty")
+      //   .isFloat({ min: 1 })
+      //   .withMessage("Hours must be a positive number")
+      //   .run(req),
 
       body("shortDescription")
         .notEmpty()
         .withMessage("Short description cannot be empty")
-        .isLength({ max: 400 })
+        .isLength({ max: 407 })
         .withMessage("Short description cannot exceed 400 characters")
         .run(req),
 
@@ -486,7 +467,7 @@ const updateCourse = async (req, res) => {
       body("price")
         .notEmpty()
         .withMessage("Price is required")
-        .isFloat({ min: 0 }) // Ensure price is non-negative
+        .isFloat({ min: 0 })
         .withMessage("Price must be a positive number")
         .custom((value) => {
           if (value > 500000) {
@@ -498,14 +479,14 @@ const updateCourse = async (req, res) => {
       body("dprice")
         .notEmpty()
         .withMessage("Display Price is required")
-        .isFloat({ min: 0 }) // Ensure display price is non-negative
+        .isFloat({ min: 0 })
         .withMessage("Display Price must be a positive number")
         .run(req),
 
       body("courseGst")
         .notEmpty()
         .withMessage("Course GST is required")
-        .isFloat({ min: 0, max: 100 }) // Ensure GST is between 0 and 100
+        .isFloat({ min: 0, max: 100 })
         .withMessage("GST must be between 0 and 100.")
         .run(req),
 
@@ -530,7 +511,6 @@ const updateCourse = async (req, res) => {
 
     const { courseId } = req.params;
     const {
-      // courseId,
       cname,
       totalVideo,
       hours,
@@ -547,8 +527,8 @@ const updateCourse = async (req, res) => {
       startTime,
       endTime,
     } = req.body;
-    
-    console.log("courseId: ", courseId)
+
+    console.log("courseId: ", courseId);
     if (!courseId) {
       return res.json({
         status: 400,
@@ -573,7 +553,6 @@ const updateCourse = async (req, res) => {
         });
       }
 
-      // Check if a course with the same name exists (other than the current course)
       const existingCourse = await Course.findOne({
         cname,
         _id: { $ne: courseId },
@@ -588,7 +567,6 @@ const updateCourse = async (req, res) => {
       const finalPrice = price === "0" ? "Free" : price;
       const finalDprice = dprice === "0" ? "Free" : dprice;
 
-      // Update course fields
       course.cname = cname || course.cname;
       course.totalVideo = totalVideo || course.totalVideo;
       course.courseImage = courseImage || course.courseImage;
@@ -601,7 +579,6 @@ const updateCourse = async (req, res) => {
       course.price = finalPrice || course.price;
       course.dprice = finalDprice || course.dprice;
 
-      // Handling chapters
       if (chapters) {
         course.chapters = chapters.map((chapter, index) => ({
           number: index + 1,
@@ -609,20 +586,18 @@ const updateCourse = async (req, res) => {
         }));
       }
 
-      // Handle courseType specific fields
       course.courseGst = courseGst || course.courseGst;
       course.courseType = courseType || course.courseType;
       if (courseType === "percentage") {
         course.percentage = percentage || course.percentage;
-        course.startTime = null; // Reset time-specific fields when type is percentage
+        course.startTime = null;
         course.endTime = null;
       } else if (courseType === "timeIntervals") {
         course.startTime = startTime || course.startTime;
         course.endTime = endTime || course.endTime;
-        course.percentage = null; // Reset percentage when type is timeIntervals
+        course.percentage = null;
       }
 
-      // Save updated course
       const updatedCourse = await course.save();
       return res.json({
         status: 200,
@@ -639,187 +614,36 @@ const updateCourse = async (req, res) => {
   });
 };
 
-// const unlinkFile = util.promisify(fs.unlink);
-
-// const deleteCourse = async (req, res) => {
-//   try {
-//     const courseId = req.params.id;
-
-//     const videos = await Video.find({ courseId });
-//     for (const video of videos) {
-//       if (video.thumbnail) {
-//         const thumbnailPath = path.join(
-//           __dirname,
-//           "../public/thumbnails",
-//           video.thumbnail
-//         );
-//         try {
-//           await unlinkFile(thumbnailPath);
-//         } catch (err) {
-//           console.error(
-//             `Failed to delete thumbnail at ${thumbnailPath}:`,
-//             err.message
-//           );
-//         }
-//       }
-
-//       if (video.videofile) {
-//         const videoPath = path.join(
-//           __dirname,
-//           "../public/videos",
-//           video.videofile
-//         );
-//         try {
-//           await unlinkFile(videoPath);
-//         } catch (err) {
-//           console.error(
-//             `Failed to delete video file at ${videoPath}:`,
-//             err.message
-//           );
-//         }
-//       }
-
-//       await Video.findByIdAndDelete(video._id);
-//     }
-
-//     const deletedCourse = await Course.findByIdAndDelete(courseId);
-//     if (!deletedCourse) {
-//       return res.json({
-//         status: 404,
-//         error: "Course not found",
-//       });
-//     }
-
-//     await Order.deleteMany({ courseId });
-
-//     res.json({
-//       status: 200,
-//       message: "Course and associated videos deleted successfully",
-//     });
-//   } catch (error) {
-//     console.error("Error deleting course:", error);
-//     res.json({
-//       status: 500,
-//       error: "Failed to delete course",
-//     });
-//   }
-// };
-
 const unlinkFile = util.promisify(fs.unlink);
-const rmdir = util.promisify(fs.rmdir); // For deleting folders
+const rmdir = util.promisify(fs.rmdir);
 const fsPromises = fs.promises;
 
 const deleteCourse = async (req, res) => {
   try {
-    const courseId = req.params.id;
+    const { id } = req.params;
+    const course = await Course.findById(id);
 
-    // Find all videos associated with the course
-    const videos = await Video.find({ courseId });
-    const basePath = path.join(__dirname, "../../public");
-
-    for (const video of videos) {
-      // Delete the thumbnail if it exists
-      if (video.thumbnail) {
-        const thumbnailPath = path.join(__dirname, "../../", video.thumbnail);
-        if (fs.existsSync(thumbnailPath)) {
-          await unlinkFile(thumbnailPath);
-          console.log(`Thumbnail deleted: ${thumbnailPath}`);
-        } else {
-          console.log(`Thumbnail not found at path: ${thumbnailPath}`);
-        }
-      }
-
-      // Delete the video file if it exists
-      if (video.videofile) {
-        const videoUrl = new URL(video.videofile);
-        const videoPath = path.join(
-          __dirname,
-          "../../public",
-          videoUrl.pathname.replace("/public/", "")
-        );
-        if (fs.existsSync(videoPath)) {
-          await unlinkFile(videoPath);
-          console.log(`Video file deleted: ${videoPath}`);
-        } else {
-          console.log(`Video file not found at path: ${videoPath}`);
-        }
-      }
-
-      // Delete the PDF file if it exists
-      if (video.pdf) {
-        const pdfPath = path.join(__dirname, "../../", video.pdf);
-        if (fs.existsSync(pdfPath)) {
-          await unlinkFile(pdfPath);
-          console.log(`PDF file deleted: ${pdfPath}`);
-        } else {
-          console.log(`PDF file not found at path: ${pdfPath}`);
-        }
-      }
-
-      // Delete the PPT file if it exists
-      if (video.ppt) {
-        const pptPath = path.join(__dirname, "../../", video.ppt);
-        if (fs.existsSync(pptPath)) {
-          await unlinkFile(pptPath);
-          console.log(`PPT file deleted: ${pptPath}`);
-        } else {
-          console.log(`PPT file not found at path: ${pptPath}`);
-        }
-      }
-
-      // Delete the document file if it exists
-      if (video.doc) {
-        const documentPath = path.join(__dirname, "../../", video.doc);
-        if (fs.existsSync(documentPath)) {
-          await unlinkFile(documentPath);
-          console.log(`Document file deleted: ${documentPath}`);
-        } else {
-          console.log(`Document file not found at path: ${documentPath}`);
-        }
-      }
-
-      // Finally, delete the video record itself
-      await Video.findByIdAndDelete(video._id);
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
     }
 
-    // Delete the course document from the database
-    const deletedCourse = await Course.findByIdAndDelete(courseId);
-    if (!deletedCourse) {
-      return res.status(404).json({
-        status: 404,
-        error: "Course not found",
-      });
-    }
+    // Soft delete: Set the deleted flag and store the current date in deletedAt
+    course.deleted = true;
+    course.deletedAt = new Date();
 
-    // Delete all orders associated with the course
-    await Order.deleteMany({ courseId });
-
-    // If all associated videos are deleted, delete the course's folder in the videos directory
-    const courseVideoFolder = path.join(basePath, "videos", courseId); // Assuming the folder is named after courseId
-    if (fs.existsSync(courseVideoFolder)) {
-      const files = await fsPromises.readdir(courseVideoFolder);
-      if (files.length === 0) {
-        await rmdir(courseVideoFolder);
-        console.log(`Course video folder deleted: ${courseVideoFolder}`);
-      } else {
-        console.log(`Course video folder not empty, remaining files: ${files}`);
-      }
-    } else {
-      console.log(`Course video folder not found: ${courseVideoFolder}`);
-    }
+    await course.save();
 
     res.json({
       status: 200,
-      message: "Course, associated videos, and files deleted successfully",
+      message: "Course deleted successfully (soft delete)",
+      course,
     });
   } catch (error) {
     console.error("Error deleting course:", error);
-    res.status(500).json({
-      status: 500,
-      error: "Failed to delete course",
-    });
+    res.status(500).json({ message: "Server error" });
   }
 };
+
 
 const courseCheckout = async (req, res) => {
   await Promise.all([
@@ -935,27 +759,29 @@ const coursetoggleButton = async (req, res) => {
 
 const getdashboard = async (req, res) => {
   try {
-    const currentDate = new Date(); // Get the current Date
-    const past30Days = new Date(currentDate); // Clone the current Date
-    past30Days.setDate(currentDate.getDate() - 30); // Set it to 30 days ago
+    const currentDate = new Date();
+    const past30Days = new Date(currentDate);
+    past30Days.setDate(currentDate.getDate() - 30);
 
-    const totalCourses = await Course.countDocuments();
-
+    const totalCourses = await Course.countDocuments({ active: true });
     const activeCourses = await Course.countDocuments({ active: true });
 
     const totalVideos = await Video.countDocuments();
-
     const activeVideos = await Video.countDocuments({ active: true });
 
     const totalUsers = await userModel.countDocuments();
-
     const activeUsers = await userModel.countDocuments({ active: true });
+    const verifiedUsers = await userModel.countDocuments({
+      otp: null,
+      verification_token: null,
+    });
+    const unverifiedUsers = await userModel.countDocuments({
+      $or: [{ otp: { $ne: null } }, { verification_token: { $ne: null } }],
+    });
 
     const totalSales = await Enrollment.countDocuments();
-
-    // const oneMonthSales = await Enrollment.countDocuments({});
     const oneMonthSales = await Purchase.countDocuments({
-      transactionDate: { $gte: past30Days }, // Assuming 'createdAt' is the field tracking when the enrollment was made
+      transactionDate: { $gte: past30Days },
     });
 
     res.status(200).json({
@@ -964,6 +790,8 @@ const getdashboard = async (req, res) => {
       totalVideos,
       activeVideos,
       totalUsers,
+      verifiedUsers,
+      unverifiedUsers,
       activeUsers,
       totalSales,
       oneMonthSales,

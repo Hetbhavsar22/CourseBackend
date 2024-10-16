@@ -12,11 +12,10 @@ const editUser = async (req, res) => {
   }
 
   try {
-    // Update user data with the given userId
     const updatedUser = await userModel.findOneAndUpdate(
-      { _id: userId }, // Query user by userId
-      { name, email, phoneNumber }, // Update data
-      { new: true } // Return the updated user data
+      { _id: userId },
+      { name, email, phoneNumber },
+      { new: true }
     );
 
     if (!updatedUser) {
@@ -29,8 +28,6 @@ const editUser = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-
 
 const deleteUser = async (req, res) => {
   try {

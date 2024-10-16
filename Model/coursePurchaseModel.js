@@ -18,12 +18,16 @@ const coursePurchaseSchema = new Schema(
       default: Date.now,
     },
     transactionId: {
-        type: String,
-        unique: true,
+      type: String,
+      unique: true,
       required: true,
-      },
+    },
     customerName: {
-        type: String,
+      type: String,
+    },
+    courseName: {
+      type: String,
+      ref: "CourseList",
     },
     customerEmail: {
       type: String,
@@ -31,7 +35,6 @@ const coursePurchaseSchema = new Schema(
     },
     mobileNumber: {
       type: Number,
-      // unique: true,
       match: [/^\d{10}$/, "Please enter a valid 10-digit mobile number"],
     },
     customerCity: {
@@ -67,16 +70,19 @@ const coursePurchaseSchema = new Schema(
     },
     paymentMode: {
       type: String,
-      enum: ["Credit Card", "Debit Card", "Net Banking", "UPI", "Wallet", "Cash"],
+      enum: [
+        "Credit Card",
+        "Debit Card",
+        "Net Banking",
+        "UPI",
+        "Wallet",
+        "Cash",
+      ],
     },
     invoiceNumber: {
       type: String,
       unique: true,
     },
-    // discountCode: {
-    //   type: String,
-    //   sparse: true,
-    // },
     cancelBillNumber: {
       type: String,
       default: null,
@@ -87,6 +93,9 @@ const coursePurchaseSchema = new Schema(
   }
 );
 
-const CoursePurchase = mongoose.model("CoursePurchaseList", coursePurchaseSchema);
+const CoursePurchase = mongoose.model(
+  "CoursePurchaseList",
+  coursePurchaseSchema
+);
 
 module.exports = CoursePurchase;

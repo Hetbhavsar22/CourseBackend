@@ -3,7 +3,7 @@ const userModel = require("../../Model/userModel");
 const jwt = require("jsonwebtoken");
 const SECRET_KEY = process.env.SECRET_KEY;
 const { ObjectId } = require("mongodb");
-const { body, validationResult } = require('express-validator');
+const { body, validationResult } = require("express-validator");
 
 const generateOTP = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
@@ -28,35 +28,44 @@ const generateToken = (userDetail) => {
   return token;
 };
 
-
-// Controller for admin login
 const login = async (req, res) => {
   try {
-    await Promise.all([
-      body("phoneNumber")
-        .notEmpty()
-        .withMessage("Phone number is required")
-        .isMobilePhone()
-        .withMessage("Enter a valid phone number")
-        .run(req),
-    ]);
+    const { phoneNumber } = req.body;
 
-    const validationErrorObj = validationResult(req);
-    if (!validationErrorObj.isEmpty()) {
+    if (!phoneNumber) {
       return res.status(400).json({
         status: 400,
-        message: validationErrorObj.errors[0].msg,
+        message: "Phone Number is required",
       });
     }
 
-    const { phoneNumber } = req.body;
-    const userDetail = await userModel.findOne({ phoneNumber });
-
-    if (!userDetail) {
+    if (!/^\d+$/.test(phoneNumber)) {
       return res.status(400).json({
         status: 400,
-        message: "Phone number not registered",
+        message: "Please enter digits only.",
       });
+    }
+
+    if (phoneNumber.length < 7 || phoneNumber.length > 14) {
+      return res.status(400).json({
+        status: 400,
+        message: "Phone number must be between 7 and 14 digits.",
+      });
+    }
+
+    let userDetail = await userModel.findOne({ phoneNumber });
+
+    if (!userDetail) {
+      userDetail = new userModel({
+        phoneNumber,
+        login_expire_time: new Date(),
+        otp: null,
+        otp_expire_time: null,
+        verification_token: null,
+        last_Browser_finger_print: null,
+      });
+
+      await userDetail.save();
     }
 
     const currentDate = new Date();
@@ -67,14 +76,13 @@ const login = async (req, res) => {
       currentDate > userDetail.login_expire_time ||
       browserFingerPrint !== userDetail.last_Browser_finger_print
     ) {
-      // If the user needs OTP verification
       userDetail.otp = generateOTP();
-      userDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000); // OTP valid for 5 minutes
+      userDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000);
       userDetail.verification_token = await generateOtpVerificationToken();
       userDetail.login_expire_time = new Date(
         currentDate.getTime() + 24 * 60 * 60 * 1000
       );
-
+      userDetail.last_Browser_finger_print = browserFingerPrint;
       // Send OTP to user via SMS
       /*var otpParams = {
         phoneNumber: userDetail.phoneNumber,
@@ -92,7 +100,7 @@ const login = async (req, res) => {
         });
       }*/
 
-      userDetail.save();
+      await userDetail.save();
 
       return res.status(200).json({
         status: 200,
@@ -100,11 +108,9 @@ const login = async (req, res) => {
         data: {
           verification_token: userDetail.verification_token,
           is_otp_required: true,
-          // otp: userDetail.otp, // Remove this in production (used for testing purposes)
         },
       });
     } else {
-      // If no OTP is required, log the user in directly
       const token = generateToken(userDetail);
       userDetail.token = token;
       userDetail.login_expire_time = new Date(
@@ -132,7 +138,6 @@ const login = async (req, res) => {
   }
 };
 
-// Controller for verifying OTP and logging in the user
 const verifyOTP = async (req, res) => {
   try {
     await Promise.all([
@@ -171,14 +176,16 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    if (userDetail.otp_expire_time && currentDate > userDetail.otp_expire_time) {
+    if (
+      userDetail.otp_expire_time &&
+      currentDate > userDetail.otp_expire_time
+    ) {
       return res.status(400).json({
         status: 400,
         message: "OTP has expired",
       });
     }
 
-    // Generate JWT token for authenticated requests
     const token = generateToken(userDetail);
 
     userDetail.token = token;
@@ -198,7 +205,6 @@ const verifyOTP = async (req, res) => {
       message: "OTP verified successfully",
       data: {
         id: userDetail._id,
-        // phoneNumber: userDetail.phoneNumber,
         token: token,
       },
     });
@@ -211,97 +217,37 @@ const verifyOTP = async (req, res) => {
   }
 };
 
-// Controller for user registration
-const register = async (req, res) => {
-  try {
-    await Promise.all([
-      body("phoneNumber")
-        .notEmpty()
-        .withMessage("Phone number is required")
-        .isMobilePhone()
-        .withMessage("Enter a valid phone number")
-        .run(req),
-    ]);
-
-    const validationErrorObj = validationResult(req);
-    if (!validationErrorObj.isEmpty()) {
-      return res.status(400).json({
-        status: 400,
-        message: validationErrorObj.errors[0].msg,
-      });
-    }
-
-    const { phoneNumber } = req.body;
-
-    // Check if phone number is already registered
-    const existingUser = await userModel.findOne({ phoneNumber });
-    if (existingUser) {
-      return res.status(400).json({
-        status: 400,
-        message: "Phone number already registered",
-      });
-    }
-
-    // Register new user
-    const newUser = new userModel({
-      phoneNumber,
-      login_expire_time: new Date(),
-      otp: null,
-      otp_expire_time: null,
-      verification_token: null,
-    });
-
-    await newUser.save();
-
-    return res.status(201).json({
-      status: 201,
-      message: "User registered successfully",
-      // data: {
-      //   id: newUser._id,
-      //   phoneNumber: newUser.phoneNumber,
-      // },
-    });
-  } catch (error) {
-    console.error("User Registration Error:", error);
-    return res.status(500).json({
-      status: 500,
-      message: "Something went wrong. Please try again later.",
-    });
-  }
-};
-
 const getAllUser = async (req, res) => {
   try {
     const {
       search,
-      page = 1,
-      limit = 4,
+      page,
+      limit,
       sortBy = "createdAt",
       order = "desc",
+      active,
     } = req.query;
 
     const query = {};
 
+    if (active) {
+      query.active = active === "true";
+    }
+
     if (search) {
       const regex = new RegExp(search, "i");
 
-      // Check if the search term is a number (for phoneNumber search)
       const searchNumber = !isNaN(search) ? Number(search) : null;
 
-      // Search by name, email, and phoneNumber
       query["$or"] = [
-        { name: regex },              // Search by user name
-        { email: regex },             // Search by email
-        ...(searchNumber !== null ? [{ phoneNumber: searchNumber }] : []), // Search by phone number if the search is a number
+        { name: regex },
+        { email: regex },
+        ...(searchNumber !== null ? [{ phoneNumber: searchNumber }] : []),
       ];
     }
 
-    // Calculate the total number of courses that match the query
     const totalUser = await userModel.countDocuments(query);
 
-    // Calculate the total number of pages
-    const pageCount = Math.ceil(totalUser / limit);
-    // Fetch the Users for the current page
     const users = await userModel
       .find(query)
       .sort({ [sortBy]: order === "asc" ? 1 : -1 })
@@ -310,14 +256,12 @@ const getAllUser = async (req, res) => {
 
     res.json({
       users,
-      page: parseInt(page),
-      pageCount,
       totalUser,
     });
   } catch (error) {
     res.json({
-      status: 500, 
-      message: error.message 
+      status: 500,
+      message: error.message,
     });
   }
 };
@@ -325,6 +269,5 @@ const getAllUser = async (req, res) => {
 module.exports = {
   login,
   verifyOTP,
-  register,
   getAllUser,
 };

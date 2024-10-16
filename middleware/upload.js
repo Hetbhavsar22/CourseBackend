@@ -2,7 +2,6 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Define file size limits
 const VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
 const THUMBNAIL_SIZE_LIMIT = 500 * 1024 * 1024; // 500 MB
 
@@ -14,7 +13,6 @@ const PROFILE_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
 const COURSE_IMAGE_SIZE_LIMIT = 500 * 1024 * 1024; // 500 MB
 const DEMO_VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
 
-// Storage configuration for video
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/videos");
@@ -24,7 +22,6 @@ const videoStorage = multer.diskStorage({
   },
 });
 
-// Storage configuration for thumbnail
 const thumbnailStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/thumbnails");
@@ -34,7 +31,6 @@ const thumbnailStorage = multer.diskStorage({
   },
 });
 
-// Storage configuration for PDF, PPT, and documents
 const pdfStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/pdf");
@@ -89,7 +85,6 @@ const demoVideoStorage = multer.diskStorage({
   },
 });
 
-// Storage configuration for different types of files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const { type, courseId, chapter } = req.body;
@@ -107,7 +102,7 @@ const storage = multer.diskStorage({
       }
       return cb(null, folderPath);
     } else if (file.fieldname === "demoVideofile") {
-      const folderPath = path.join("public/demoVideos");
+      const folderPath = path.join("public/demoVideos", courseId, chapter);
       if (!fs.existsSync(folderPath)) {
         fs.mkdirSync(folderPath, { recursive: true });
       }
@@ -125,6 +120,8 @@ const storage = multer.diskStorage({
         folderPath = path.join("public/videos", courseId, chapter);
       } else if (file.fieldname === "thumbnail") {
         folderPath = path.join("public/thumbnails", courseId, chapter);
+      } else if (file.fieldname === "demoVideofile") {
+        folderPath = path.join("public/demoVideos", courseId, chapter);
       } else {
         return cb(new Error("Invalid field name for video"), false);
       }
@@ -142,7 +139,6 @@ const storage = multer.diskStorage({
       return cb(new Error("Invalid field name"), false);
     }
 
-    // Ensure the folder exists
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
@@ -154,7 +150,6 @@ const storage = multer.diskStorage({
   },
 });
 
-// Define file limits based on type
 const limits = {
   fileSize: (req, file, cb) => {
     const type = req.body;
@@ -164,6 +159,8 @@ const limits = {
         cb(null, VIDEO_SIZE_LIMIT);
       } else if (file.fieldname === "thumbnail") {
         cb(null, THUMBNAIL_SIZE_LIMIT);
+      } else if (file.fieldname === "demoVideofile") {
+        cb(null, DEMO_VIDEO_SIZE_LIMIT);
       } else {
         cb(new Error("Invalid file field for video"), false);
       }
@@ -189,30 +186,42 @@ const limits = {
   },
 };
 
-// Define file filters
 const fileFilter = (req, file, cb) => {
+  console.log("start")
   const type = req.body.type;
-
+console.log("type: ",type)
+console.log("video file field name: ", file.fieldname)
   if (type === "video") {
+    console.log("1")
     if (file.fieldname === "videofile" && file.mimetype.startsWith("video/")) {
       cb(null, true);
     } else if (
+      console.log("2"),
       file.fieldname === "thumbnail" &&
       file.mimetype.startsWith("image/")
+    ) {
+      cb(null, true);
+    } else if (
+      // console.log("2"),
+      file.fieldname === "demoVideofile" &&
+      file.mimetype.startsWith("video/")
     ) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type for video"), false);
     }
   } else if (type === "document") {
+    console.log("3")
     if (file.fieldname === "pdf" && file.mimetype === "application/pdf") {
       cb(null, true);
     } else if (
+      console.log("4"),
       file.fieldname === "doc" &&
       file.mimetype === "application/msword"
     ) {
       cb(null, true);
     } else if (
+      console.log("5"),
       file.fieldname === "ppt" &&
       file.mimetype ===
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -222,26 +231,29 @@ const fileFilter = (req, file, cb) => {
       cb(new Error("Invalid file type for document"), false);
     }
   } else if (
+    console.log("6"),
     file.fieldname === "profileImage" &&
     file.mimetype.startsWith("image/")
   ) {
     cb(null, true);
   } else if (
+    console.log("7"),
     file.fieldname === "courseImage" &&
     file.mimetype.startsWith("image/")
   ) {
     cb(null, true);
   } else if (
+    console.log("8"),
     file.fieldname === "demoVideofile" &&
     file.mimetype.startsWith("video/")
   ) {
     cb(null, true);
   } else {
+    console.log("9")
     cb(new Error("Invalid file type"), false);
   }
 };
 
-// Create multer upload middleware
 const upload = multer({ storage, limits, fileFilter }).fields([
   { name: "videofile", maxCount: 1 },
   { name: "thumbnail", maxCount: 1 },
