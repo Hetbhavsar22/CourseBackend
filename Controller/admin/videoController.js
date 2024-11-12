@@ -59,13 +59,15 @@ const createVideo = (req, res) => {
         });
       }
 
-      const { title, description, tags, type, courseId, chapter, videoURL, fileType } =
-        req.body;
+      const { title, description, tags, type, courseId, chapter, videoURL, fileType } = req.body;
+      const demo = req.body.demo === "true" || req.body.demo === true;
+      console.log("Demo value from request body:", req.body.demo);
+      const videoFilePath = req.files && req.files.videofile ? req.files.videofile[0].path : null;
+      console.log("Video file path: ", videoFilePath);
 
-      const demoVideofile =
-        req.files && req.files.demoVideofile
-          ? req.files.demoVideofile[0].path
-          : null;
+      if (!videoFilePath) {
+        throw new Error("Video file path is null or undefined");
+      }
 
       console.log("Request Body: ", req.body);
 
@@ -98,13 +100,15 @@ const createVideo = (req, res) => {
         title,
         description,
         tags,
-        demoVideofile,
         type,
         active: true,
         order: newOrder,
         chapter,
         videoURL,
-        fileType
+        fileType,
+        demo,
+  demoVideofile: demo ? videoFilePath : null,
+  videofile: !demo ? videoFilePath : null
       };
 
       if (type === "document") {
@@ -113,21 +117,25 @@ const createVideo = (req, res) => {
         newMedia.doc = req.files["doc"] ? req.files["doc"][0].path : undefined;
       }
 
-      if (type === "video") {
+      if (type === "video" && demo !== "true" && videoFilePath) {
         newMedia.thumbnail = req.files["thumbnail"]
           ? req.files["thumbnail"][0].path
           : undefined;
-        newMedia.videofile = req.files["videofile"]
-          ? req.files["videofile"][0].path
-          : undefined;
+        // newMedia.videofile = req.files["videofile"]
+        //   ? req.files["videofile"][0].path
+        //   : undefined;
 
         // Generate DASH manifest using MP4Box
-        if (newMedia.videofile) {
-          const videoFilePath = newMedia.videofile;
+        
+          console.log("Inside video processing block");
+          
+          const videoFilePath = req.files && req.files.videofile ? req.files.videofile[0].path : null;
+          console.log("Video file path before extname: ", videoFilePath);
           const videoFileName = path.basename(
             videoFilePath,
             path.extname(videoFilePath)
           );
+          console.log("Video file name: ", videoFileName);
           const outputDir = path.join(
             __dirname,
             "../../public/videos",
@@ -142,6 +150,8 @@ const createVideo = (req, res) => {
           }
 
           const manifestPath = path.join(outputDir, `${videoFileName}.mpd`);
+
+          console.log("Manifest path: ", manifestPath);
 
           console.log("Video file path: ", videoFilePath);
 
@@ -161,7 +171,7 @@ const createVideo = (req, res) => {
 
           const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}/${videoFileName}.mpd`;
           newMedia.videofile = manifestUrl; // Update with manifest URL
-        }
+        
       }
 
       const newVideo = new Video(newMedia);
@@ -727,13 +737,20 @@ const updateVideoDetails = (req, res) => {
     }
 
     const { title, description, tags, type, courseId, chapter, fileType, videoURL } = req.body;
+    const demo = req.body.demo === "true" || req.body.demo === true;
+    const videoFilePath = req.files && req.files.videofile ? req.files.videofile[0].path : null;
 
-    console.log("courseId: ", courseId)
+      // if (!videoFilePath) {
+      //   throw new Error("Video file path is required");
+      // }
 
-    const demoVideofile =
-      req.files && req.files.demoVideofile
-        ? req.files.demoVideofile[0].path
-        : null;
+      // const video = await Video.findById(videoId);
+      // if (!video) {
+      //   return res.status(404).json({
+      //     status: 404,
+      //     message: "Video not found",
+      //   });
+      // }
 
     try {
       const video = await Video.findById(videoId);
@@ -758,6 +775,13 @@ const updateVideoDetails = (req, res) => {
 
       const createdBy = admin.name;
 
+      if (!demo && video.demoVideofile) {
+        if (fs.existsSync(video.demoVideofile)) {
+          fs.unlinkSync(video.demoVideofile);
+        }
+        video.demoVideofile = null; // Clear the demo video file path in the database
+      }
+      
       // Handle deletion of existing media files before updating
       const deleteFile = (filePath) => {
         if (fs.existsSync(filePath)) {
@@ -812,7 +836,10 @@ const updateVideoDetails = (req, res) => {
       video.title = title || video.title;
       video.description = description || video.description;
       video.tags = tags || video.tags;
-      video.demoVideofile = demoVideofile || video.demoVideofile;
+      video.demo = demo;
+      if (demo && videoFilePath) {
+        video.demoVideofile = videoFilePath;
+      }
       video.videoURL = videoURL || video.videoURL;
       video.type = type || video.type;
       video.fileType = fileType || video.fileType;
@@ -820,29 +847,25 @@ const updateVideoDetails = (req, res) => {
       video.courseId = courseId || video.courseId;
       video.createdBy = createdBy;
 
-      // Handle document type updates
       if (type === "document") {
         if (req.files["pdf"]) {
-          video.pdf = req.files["pdf"][0].path; // Update PDF if provided
+          video.pdf = req.files["pdf"][0].path;
         }
         if (req.files["ppt"]) {
-          video.ppt = req.files["ppt"][0].path; // Update PPT if provided
+          video.ppt = req.files["ppt"][0].path;
         }
         if (req.files["doc"]) {
-          video.doc = req.files["doc"][0].path; // Update DOC if provided
+          video.doc = req.files["doc"][0].path;
         }
       }
 
-      // Handle video type updates
-      if (type === "video") {
+      if (type === "video" && videoFilePath) {
         if (req.files["thumbnail"]) {
-          video.thumbnail = req.files["thumbnail"][0].path; // Update thumbnail if provided
+          video.thumbnail = req.files["thumbnail"][0].path;
         }
         if (req.files["videofile"]) {
-          video.videofile = req.files["videofile"][0].path; // Update video file if provided
+          video.videofile = req.files["videofile"][0].path;
 
-          // Generate DASH manifest for video
-          if (video.videofile) {
             const videoFilePath = video.videofile;
             const videoFileName = path.basename(videoFilePath, path.extname(videoFilePath));
             const outputDir = path.join(
@@ -873,8 +896,7 @@ const updateVideoDetails = (req, res) => {
             });
 
             const manifestUrl = `${process.env.BASE_URL}/public/videos/${courseId}/${chapter}/${videoFileName}.mpd`;
-            video.videofile = manifestUrl; // Update with manifest URL
-          }
+            video.videofile = manifestUrl;
         }
       }
 

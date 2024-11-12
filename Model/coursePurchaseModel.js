@@ -87,6 +87,24 @@ const coursePurchaseSchema = new Schema(
       type: String,
       default: null,
     },
+    refundAmount: { 
+      type: Number 
+    },
+    refundDate: { 
+      type: Date 
+    },
+    refundStatus: {
+      type: Boolean,
+      default: false,
+    },
+    refundId: {
+      type: String,
+      default: null,
+    },
+    refundCount: { 
+      type: Number, 
+      default: 0 
+    },
   },
   {
     timestamps: true,

@@ -35,13 +35,16 @@ const {
   courseCheckout,
   coursetoggleButton,
   getdashboard,
+  updateVideoProgress,
+  generateCertificate,
+  getRecommendedCourses,
 } = require("../Controller/admin/courseController");
 const {
   createOrder,
   verifyPayment,
   getAllCoursePurchases,
   deleteCoursePurchase,
-  initiateRefund,
+  // initiateRefund,
   coursePurchasetoggleButton,
   getEnrolledCourses,
 } = require("../Controller/admin/order_idController");
@@ -55,6 +58,10 @@ const {
   coursechapters,
   videotoggleButton,
 } = require("../Controller/admin/videoController");
+const {
+  initiateRefund,
+  getAllRefunds,
+} = require("../Controller/admin/refundController");
 
 //Admin Route
 router.post("/login", login);
@@ -76,6 +83,36 @@ router.delete("/coursedetails/:id", auth, deleteCourse);
 router.post("/courseCheckout", auth, courseCheckout);
 router.patch("/:id/coursetoggleButton", coursetoggleButton);
 router.get("/dashboard-stats", auth, getdashboard);
+router.get("/recommendations/:purchaseId", getRecommendedCourses);
+router.post("/update-video-progress", async (req, res) => {
+  const { userId, videoId, courseId, progress } = req.body;
+
+  // Validate input
+  if (!userId || !videoId || !courseId || progress === undefined) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
+  if (progress < 0) {
+    return res
+      .status(400)
+      .json({ message: "Course Progress cann't be less then 0." });
+  }
+
+  if (progress > 100) {
+    return res
+      .status(400)
+      .json({ message: "Course Progress cann't be greater then 100." });
+  }
+
+  try {
+    // Call the updateVideoProgress function
+    await updateVideoProgress(userId, videoId, courseId, progress);
+    res.status(200).json({ message: "Course progress updated successfully." });
+  } catch (error) {
+    console.error("Error updating video progress:", error);
+    res.status(500).json({ message: "Error updating video progress." });
+  }
+});
 
 //Course Purchase Order Id
 router.post("/createOrder", createOrder);
@@ -83,8 +120,9 @@ router.post("/verify-payment", verifyPayment);
 router.get("/purchased-courses-byuser/:userId", getEnrolledCourses);
 router.get("/allPurchasedCourse", getAllCoursePurchases);
 router.delete("/deletetransaction/:id", auth, deleteCoursePurchase);
-router.post("/refund", initiateRefund);
+// router.post("/refund", initiateRefund);
 router.patch("/:id/coursePurchasetoggleButton", coursePurchasetoggleButton);
+router.post("/generate-certificate", generateCertificate);
 
 //Video Route
 router.post("/:courseId/upload", auth, createVideo);
@@ -103,5 +141,9 @@ router.get("/getActiveTags", auth, getActiveTags);
 router.put("/edittags/:id", auth, editTag);
 router.delete("/deletetags/:id", auth, deleteTag);
 router.patch("/:id/tagtoggleButton", tagtoggleButton);
+
+//Refund Route
+router.post("/refund/:transactionId", initiateRefund);
+router.get("/allRefund-details", getAllRefunds);
 
 module.exports = router;

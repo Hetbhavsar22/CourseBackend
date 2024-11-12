@@ -25,7 +25,10 @@ const courseSchema = new Schema(
     courseImage: {
       type: String,
     },
-    demoVideofile: {
+    previewVideofile: {
+      type: String,
+    },
+    learn: {
       type: String,
     },
     hours: {

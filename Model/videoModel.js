@@ -22,6 +22,10 @@ const videoSchema = new Schema(
     demoVideofile: {
       type: String,
     },
+    demo: {
+      type: Boolean,
+      default: false,
+    },
     thumbnail: {
       type: String,
       default: null,
@@ -44,7 +48,6 @@ const videoSchema = new Schema(
     },
     tags: {
       type: [String],
-      required: true,
     },
     type: {
       type: String,

@@ -4,7 +4,8 @@ const Video = require("../../Model/videoModel");
 const userModel = require("../../Model/userModel");
 const adminModel = require("../../Model/adminModel");
 const Enrollment = require("../../Model/enrollmentModel");
-const Order = require("../../Model/oder_IdModel");
+const VideoProgress = require("../../Model/VideoProgress");
+const Certificate = require("../../Model/CertificateModel");
 const Purchase = require("../../Model/coursePurchaseModel");
 const upload = require("../../middleware/upload");
 const path = require("path");
@@ -12,6 +13,8 @@ const fs = require("fs");
 const { body, validationResult } = require("express-validator");
 const util = require("util");
 const jwt = require("jsonwebtoken");
+const pdf = require("html-pdf");
+const moment = require("moment");
 
 const createCourse = async (req, res) => {
   upload(req, res, async (err) => {
@@ -44,18 +47,16 @@ const createCourse = async (req, res) => {
             return true;
           })
           .run(req),
+        body("learn")
+          .notEmpty()
+          .withMessage("What you will Learn field is required")
+          .run(req),
         body("totalVideo")
           .notEmpty()
           .withMessage("Total video count is required")
           .isInt({ min: 1 })
           .withMessage("Total video count must be a positive integer")
           .run(req),
-        // body("hours")
-        //   .notEmpty()
-        //   .withMessage("Total hours are required")
-        //   .isFloat({ min: 1 })
-        //   .withMessage("Hours must be a positive number")
-        //   .run(req),
         body("author")
           .notEmpty()
           .withMessage("Author name is required")
@@ -136,6 +137,7 @@ const createCourse = async (req, res) => {
       const {
         cname,
         totalVideo,
+        learn,
         hours,
         author,
         shortDescription,
@@ -156,10 +158,10 @@ const createCourse = async (req, res) => {
           ? req.files.courseImage[0].path
           : null;
 
-      // const demoVideofile =
-      //   req.files && req.files.demoVideofile
-      //     ? req.files.demoVideofile[0].path
-      //     : null;
+      const previewVideofile =
+        req.files && req.files.previewVideofile
+          ? req.files.previewVideofile[0].path
+          : null;
 
       const existingCourse = await Course.findOne({ cname });
       if (existingCourse) {
@@ -184,8 +186,9 @@ const createCourse = async (req, res) => {
         adminId,
         cname,
         totalVideo,
+        learn,
         courseImage,
-        // demoVideofile,
+        previewVideofile,
         hours,
         author,
         shortDescription,
@@ -243,14 +246,11 @@ const getAllCourses = async (req, res) => {
       createdAt,
       active,
       deleted = false,
+      pageCount,
     } = req.query;
 
     const query = {};
 
-    // if (deleted) {
-    //   query.deleted = deleted === "flse";
-    // }
-    
     if (active) {
       query.active = active === "true";
     }
@@ -314,7 +314,7 @@ const getAllCourses = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-    if (userId) {
+    if (userId && userId !== "null") {
       const enrollments = await Enrollment.find({ userId });
       const enrolledCourseIds = enrollments.map((enrollment) =>
         enrollment.courseId.toString()
@@ -357,7 +357,6 @@ const getAllCourses = async (req, res) => {
 const getCourseById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.body.userId;
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.json({
@@ -374,24 +373,23 @@ const getCourseById = async (req, res) => {
       });
     }
 
-    if (!userId) {
-      return res.json({
-        status: 404,
-        message: "User not found",
-      });
-    }
-
     let isEnrolled = false;
-    if (userId) {
-      const enrollment = await Enrollment.findOne({ userId, courseId: id });
-      isEnrolled = !!enrollment;
-    }
+
+    const videos = await Video.find({ courseId: id });
+
+    const demoVideos = videos
+      .map((video) => ({
+        title: video.title,
+        demoVideofile: video.demoVideofile,
+      }))
+      .filter((video) => video.demoVideofile !== null);
 
     return res.json({
       status: 200,
       data: {
         ...course._doc,
         isEnrolled,
+        demoVideos,
       },
     });
   } catch (error) {
@@ -429,20 +427,16 @@ const updateCourse = async (req, res) => {
           return true;
         })
         .run(req),
-
+      body("learn")
+        .notEmpty()
+        .withMessage("What you will Learn field is required")
+        .run(req),
       body("totalVideo")
         .notEmpty()
         .withMessage("Total Videos cannot be empty")
         .isInt({ min: 1 })
         .withMessage("Total video count must be a positive integer")
         .run(req),
-
-      // body("hours")
-      //   .notEmpty()
-      //   .withMessage("Total Hours cannot be empty")
-      //   .isFloat({ min: 1 })
-      //   .withMessage("Hours must be a positive number")
-      //   .run(req),
 
       body("shortDescription")
         .notEmpty()
@@ -513,6 +507,7 @@ const updateCourse = async (req, res) => {
     const {
       cname,
       totalVideo,
+      learn,
       hours,
       author,
       shortDescription,
@@ -539,9 +534,9 @@ const updateCourse = async (req, res) => {
     const courseImage =
       req.files && req.files.courseImage ? req.files.courseImage[0].path : null;
 
-    const demoVideofile =
-      req.files && req.files.demoVideofile
-        ? req.files.demoVideofile[0].path
+    const previewVideofile =
+      req.files && req.files.previewVideofile
+        ? req.files.previewVideofile[0].path
         : null;
 
     try {
@@ -569,8 +564,9 @@ const updateCourse = async (req, res) => {
 
       course.cname = cname || course.cname;
       course.totalVideo = totalVideo || course.totalVideo;
+      course.learn = learn || course.learn;
       course.courseImage = courseImage || course.courseImage;
-      course.demoVideofile = demoVideofile || course.demoVideofile;
+      course.previewVideofile = previewVideofile || course.previewVideofile;
       course.hours = hours || course.hours;
       course.author = author || course.author;
       course.shortDescription = shortDescription || course.shortDescription;
@@ -627,7 +623,6 @@ const deleteCourse = async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    // Soft delete: Set the deleted flag and store the current date in deletedAt
     course.deleted = true;
     course.deletedAt = new Date();
 
@@ -643,7 +638,6 @@ const deleteCourse = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 const courseCheckout = async (req, res) => {
   await Promise.all([
@@ -802,6 +796,332 @@ const getdashboard = async (req, res) => {
   }
 };
 
+const checkCourseCompletion = async (userId, courseId) => {
+  try {
+    const videoProgressRecords = await VideoProgress.find({ userId, courseId });
+
+    const allVideosCompleted = videoProgressRecords.every(
+      (video) => video.progress === 100
+    );
+
+    const totalProgress = videoProgressRecords.reduce(
+      (acc, video) => acc + video.progress,
+      0
+    );
+    const percentageCompleted = totalProgress / videoProgressRecords.length;
+
+    if (allVideosCompleted) {
+      await Enrollment.updateOne(
+        { userId, courseId },
+        { percentageCompleted, CompletedCourseStatus: true }
+      );
+
+      console.log("Course completed successfully.");
+    } else {
+      const totalProgress = videoProgressRecords.reduce(
+        (acc, video) => acc + video.progress,
+        0
+      );
+      const percentageCompleted = totalProgress / videoProgressRecords.length;
+
+      await Enrollment.updateOne({ userId, courseId }, { percentageCompleted });
+    }
+  } catch (error) {
+    console.error("Error checking course completion:", error);
+  }
+};
+
+const updateVideoProgress = async (userId, videoId, courseId, progress) => {
+  try {
+    await VideoProgress.findOneAndUpdate(
+      { userId, videoId, courseId },
+      {
+        progress,
+        completed: progress >= 100,
+        updatedAt: Date.now(),
+      },
+      { upsert: true, new: true }
+    );
+
+    await checkCourseCompletion(userId, courseId);
+  } catch (error) {
+    console.error("Error updating video progress:", error);
+  }
+};
+
+const generateCertificate = async (req, res) => {
+  try {
+    const { userName, courseId, userId } = req.body;
+    console.log("Received userName:", userName);
+
+    if (!userName || !courseId || !userId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    console.log("Course Type:", course.courseType);
+    let certificateTemplate;
+    switch (course.courseType) {
+      case "percentage":
+        certificateTemplate =
+          "http://localhost:8080/public/CERTIFICATE_TYPE1.png";
+        break;
+      case "timeIntervals":
+        certificateTemplate =
+          "http://localhost:8080/public/CERTIFICATE_TYPE2.png";
+        break;
+      default:
+        certificateTemplate = "http://localhost:8080/public/CERTIFICATE.png";
+    }
+
+    const year = moment().format("YYYY");
+    const month = moment().format("MM");
+    const count = await Certificate.countDocuments();
+    const certificateName = `${course.cname}${userName}`;
+    const certificateNumber = `MGPS/${year}/${month}/${String(
+      count + 1
+    ).padStart(2, "0")}`;
+    const sign = "http://localhost:8080/public/Sign.jpeg";
+    const currentDate = moment().format("MM/DD/YYYY");
+
+    console.log(__dirname);
+    console.log(certificateTemplate);
+    const html = `
+<html>
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Georgia:wght@400&display=swap');
+    body {
+      font-family: 'Georgia', serif;
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+      color: #000;
+    }
+    .container {
+      position: relative;
+      width: 100%;
+      height: 850px;
+      background-image: url('${certificateTemplate}');
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+   
+    .certificate-text {
+      position: absolute;
+      left: 380px;
+      top: 230px;
+      width: 700px;
+    }
+    .user-name {
+    font-family: 'Lexend Deca', sans-serif;
+      font-size: 25px;
+      font-weight: bold;
+    }
+    .description {
+     font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+
+    .date {
+      position: absolute;
+      top: 387px;
+      left: 290px;
+      font-size: 18px;
+    }
+   
+    .certificate-id {
+      position: absolute;
+      top: 387px;
+      right: 100px;
+      font-size: 18px;
+    }
+
+     .sign1 {
+      position: absolute;
+      top: 440px;
+      left: 100px;
+      width: 100px;
+      height: 50px;
+    }
+
+    .sign2 {
+      position: absolute;
+      top: 440px;
+      left: 320px;
+      width: 100px;
+      height: 50px;
+    }
+
+    .sign3 {
+      position: absolute;
+      top: 440px;
+      left: 530px;
+      width: 100px;
+      height: 50px;
+    }
+
+    .sign4 {
+      position: absolute;
+      top: 440px;
+      left: 740px;
+      width: 100px;
+      height: 50px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Dynamic Text Overlay for Username and Description -->
+    <div class="certificate-text">
+      <p class="user-name">${userName}</p>
+      <p class="description">has successfully completed the course "${course.cname}".</p>
+      <p class="description">conducted by Majestic Garbhsanskar & Parenting Solution Pvt. Ltd.</p>
+    </div>
+
+    <!-- Dynamic Date placed under the Certificate Date line -->
+    <p class="date">${currentDate}</p>
+
+    <!-- Dynamic Certificate ID placed under the Certificate ID line -->
+    <p class="certificate-id">${certificateNumber}</p>
+
+    <img class="sign1" src="${sign}" alt="Signature" />
+    <img class="sign2" src="${sign}" alt="Signature" />
+    <img class="sign3" src="${sign}" alt="Signature" />
+    <img class="sign4" src="${sign}" alt="Signature" />
+  </div>
+</body>
+</html>
+`;
+
+    pdf.create(html).toBuffer(async (err, buffer) => {
+      if (err) {
+        console.error("Error generating PDF:", err);
+        return res.status(500).json({ error: "Error generating PDF" });
+      }
+
+      try {
+        const newCertificate = new Certificate({
+          courseId,
+          userId,
+          userName,
+          courseName: course.cname,
+          certificateNumber,
+        });
+
+        console.log("Certificate data to be saved:", newCertificate);
+
+        const savedCertificate = await newCertificate.save();
+
+        console.log("Certificate saved:", savedCertificate);
+
+        res.json({
+          message: "Certificate generated successfully!",
+          certificateUrl: `data:application/pdf;base64,${buffer.toString(
+            "base64"
+          )}`,
+          pdfBase64: buffer.toString("base64"),
+          userName,
+          courseName: course.cname,
+          date: currentDate,
+          certificateNumber,
+        });
+      } catch (saveError) {
+        console.error("Error saving certificate to database:", saveError);
+        return res
+          .status(500)
+          .json({ error: "Error saving certificate to database" });
+      }
+    });
+  } catch (error) {
+    console.error("Error generating certificate:", error);
+    return res.status(500).json({ error: "Error generating certificate" });
+  }
+};
+
+const getRecommendedCourses = async (req, res) => {
+  try {
+    const { purchaseId } = req.params;
+    const purchase = await Purchase.findById(purchaseId).populate("courseId");
+
+    if (!purchase) {
+      return res.status(404).json({ message: "Purchase not found" });
+    }
+
+    const purchasedCourse = purchase.courseId;
+    if (!purchasedCourse) {
+      return res.status(404).json({ message: "Purchased course not found" });
+    }
+
+    console.log("Purchased Course Details:", purchasedCourse);
+
+    const { courseType, author, language } = purchasedCourse;
+
+    if (!courseType || !author || !language) {
+      return res.status(400).json({
+        message:
+          "Course information incomplete: missing courseType, author, or language",
+      });
+    }
+
+    console.log("Search Criteria:", { courseType, author, language });
+
+    let similarCourses = await Course.find({
+      _id: { $ne: purchasedCourse._id },
+      deleted: false,
+      $or: [
+        { courseType: courseType },
+        { author: author },
+        { language: language },
+      ],
+    }).limit(5);
+
+    console.log("Similar Courses (Full Match):", similarCourses);
+
+    if (!similarCourses.length) {
+      console.log("No full match found. Relaxing search criteria...");
+
+      similarCourses = await Course.find({
+        _id: { $ne: purchasedCourse._id },
+        deleted: false,
+        $or: [{ courseType: courseType }, { author: author }],
+      }).limit(5);
+
+      console.log(
+        "Similar Courses (Match by courseType and author):",
+        similarCourses
+      );
+
+      if (!similarCourses.length) {
+        similarCourses = await Course.find({
+          _id: { $ne: purchasedCourse._id },
+          deleted: false,
+          courseType: courseType,
+        }).limit(5);
+
+        console.log(
+          "Similar Courses (Match by courseType only):",
+          similarCourses
+        );
+      }
+    }
+
+    if (!similarCourses.length) {
+      return res.status(404).json({ message: "No similar courses found" });
+    }
+
+    return res.status(200).json(similarCourses);
+  } catch (error) {
+    console.error("Error fetching recommended courses:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -811,4 +1131,7 @@ module.exports = {
   courseCheckout,
   coursetoggleButton,
   getdashboard,
+  updateVideoProgress,
+  generateCertificate,
+  getRecommendedCourses,
 };

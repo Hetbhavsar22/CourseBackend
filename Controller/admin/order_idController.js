@@ -1,5 +1,5 @@
 const Razorpay = require("razorpay");
-const Order = require("../../Model/oder_IdModel");
+const Order = require("../../Model/order_IdModel");
 const userModel = require("../../Model/userModel");
 const Course = require("../../Model/courseModel");
 const CoursePurchase = require("../../Model/coursePurchaseModel");
@@ -49,7 +49,7 @@ const createOrder = async (req, res) => {
       const newOrder = new Order({
         courseId,
         userId,
-        amount: amount,
+        amount: amount/100,
         currency,
         razorpayOrderId: order.id,
         secretKey,

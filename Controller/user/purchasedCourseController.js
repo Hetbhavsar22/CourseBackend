@@ -50,6 +50,7 @@ const getPurchasedCourseDetails = async (req, res) => {
       description: course.shortDescription,
       longDescription: course.longDescription,
       courseImage: course.courseImage,
+      previewVideofile: course.previewVideofile,
       hours: course.hours,
       totalVideo: course.totalVideo,
       language: course.language,

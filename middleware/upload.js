@@ -11,7 +11,7 @@ const DOC_SIZE_LIMIT = 50 * 1024 * 1024; // 50 MB
 
 const PROFILE_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
 const COURSE_IMAGE_SIZE_LIMIT = 500 * 1024 * 1024; // 500 MB
-const DEMO_VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
+const PREVIEW_VIDEO_SIZE_LIMIT = 1000 * 1024 * 1024; // 1 GB
 
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -76,12 +76,12 @@ const courseImageStorage = multer.diskStorage({
   },
 });
 
-const demoVideoStorage = multer.diskStorage({
+const previewVideoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "public/demoVideos");
+    cb(null, "public/previewVideos");
   },
   filename: (req, file, cb) => {
-    cb(null, "demoVideos_" + Date.now() + path.extname(file.originalname));
+    cb(null, "previewVideos_" + Date.now() + path.extname(file.originalname));
   },
 });
 
@@ -101,8 +101,8 @@ const storage = multer.diskStorage({
         fs.mkdirSync(folderPath, { recursive: true });
       }
       return cb(null, folderPath);
-    } else if (file.fieldname === "demoVideofile") {
-      const folderPath = path.join("public/demoVideos", courseId, chapter);
+    } else if (file.fieldname === "previewVideofile") {
+      const folderPath = path.join("public/previewVideos");
       if (!fs.existsSync(folderPath)) {
         fs.mkdirSync(folderPath, { recursive: true });
       }
@@ -120,8 +120,8 @@ const storage = multer.diskStorage({
         folderPath = path.join("public/videos", courseId, chapter);
       } else if (file.fieldname === "thumbnail") {
         folderPath = path.join("public/thumbnails", courseId, chapter);
-      } else if (file.fieldname === "demoVideofile") {
-        folderPath = path.join("public/demoVideos", courseId, chapter);
+      } else if (file.fieldname === "previewVideofile") {
+        folderPath = path.join("public/previewVideos", courseId, chapter);
       } else {
         return cb(new Error("Invalid field name for video"), false);
       }
@@ -159,8 +159,8 @@ const limits = {
         cb(null, VIDEO_SIZE_LIMIT);
       } else if (file.fieldname === "thumbnail") {
         cb(null, THUMBNAIL_SIZE_LIMIT);
-      } else if (file.fieldname === "demoVideofile") {
-        cb(null, DEMO_VIDEO_SIZE_LIMIT);
+      } else if (file.fieldname === "previewVideofile") {
+        cb(null, PREVIEW_VIDEO_SIZE_LIMIT);
       } else {
         cb(new Error("Invalid file field for video"), false);
       }
@@ -178,8 +178,8 @@ const limits = {
       cb(null, PROFILE_IMAGE_SIZE_LIMIT);
     } else if (file.fieldname === "courseImage") {
       cb(null, COURSE_IMAGE_SIZE_LIMIT);
-    } else if (file.fieldname === "demoVideofile") {
-      cb(null, DEMO_VIDEO_SIZE_LIMIT);
+    } else if (file.fieldname === "previewVideofile") {
+      cb(null, PREVIEW_VIDEO_SIZE_LIMIT);
     } else {
       cb(new Error("Invalid field name"), false);
     }
@@ -203,7 +203,7 @@ console.log("video file field name: ", file.fieldname)
       cb(null, true);
     } else if (
       // console.log("2"),
-      file.fieldname === "demoVideofile" &&
+      file.fieldname === "previewVideofile" &&
       file.mimetype.startsWith("video/")
     ) {
       cb(null, true);
@@ -244,7 +244,7 @@ console.log("video file field name: ", file.fieldname)
     cb(null, true);
   } else if (
     console.log("8"),
-    file.fieldname === "demoVideofile" &&
+    file.fieldname === "previewVideofile" &&
     file.mimetype.startsWith("video/")
   ) {
     cb(null, true);
@@ -262,7 +262,7 @@ const upload = multer({ storage, limits, fileFilter }).fields([
   { name: "doc", maxCount: 1 },
   { name: "profileImage", maxCount: 1 },
   { name: "courseImage", maxCount: 1 },
-  { name: "demoVideofile", maxCount: 1 },
+  { name: "previewVideofile", maxCount: 1 },
 ]);
 
 module.exports = upload;

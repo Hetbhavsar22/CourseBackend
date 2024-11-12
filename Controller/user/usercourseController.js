@@ -4,7 +4,7 @@ const Video = require("../../Model/videoModel");
 const userModel = require("../../Model/userModel");
 const adminModel = require("../../Model/adminModel");
 const Enrollment = require("../../Model/enrollmentModel");
-const Order = require("../../Model/oder_IdModel");
+const Order = require("../../Model/order_IdModel");
 const Purchase = require("../../Model/coursePurchaseModel");
 const upload = require("../../middleware/upload");
 const path = require("path");
@@ -35,9 +35,15 @@ const getAllCourses = async (req, res) => {
       createdBy,
       createdAt,
       active,
+      deleted = false,
+      pageCount,
     } = req.query;
 
     const query = {};
+
+    // if (deleted) {
+    //   query.deleted = deleted === "flse";
+    // }
 
     if (active) {
       query.active = active === "true";
@@ -95,66 +101,64 @@ const getAllCourses = async (req, res) => {
 
     const sortOrder = order.toLowerCase() === "asc" ? 1 : -1;
 
-    const totalCourses = await Course.countDocuments(query);
+    // Find all courses that match the query
+    const courses = await Course.find(query).sort({ [sortBy]: sortOrder });
 
-    const courses = await Course.find(query)
-      .sort({ [sortBy]: sortOrder })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    // Filter courses to only include those that have videos or documents
+    const coursesWithMedia = await Promise.all(
+      courses.map(async (course) => {
+        const videoExists = await Video.exists({
+          courseId: course._id,
+          $or: [{ type: "video" }, { type: "document" }],
+        });
 
-    if (userId) {
+        // Only include the course if videos or documents exist
+        if (videoExists) {
+          return course;
+        }
+        return null; // Filter out courses without media
+      })
+    );
+
+    // Filter out null values
+    const filteredCourses = coursesWithMedia.filter((course) => course !== null);
+
+    const totalCourses = filteredCourses.length;
+
+    // Apply pagination
+    const paginatedCourses = filteredCourses.slice((page - 1) * limit, page * limit);
+
+    if (userId && userId !== "null") {
       const enrollments = await Enrollment.find({ userId });
       const enrolledCourseIds = enrollments.map((enrollment) =>
         enrollment.courseId.toString()
       );
-      const coursesWithEnrollmentStatus = await Promise.all(
-        courses.map(async (course) => {
-          const resources = await Video.find({ courseId: course._id });
-          if (resources.length > 0) {
-            return {
-              _id: course._id,
-              cname: course.cname,
-              totalVideo: course.totalVideo,
-              courseImage: course.courseImage,
-              shortDescription: course.shortDescription,
-              dvideo: course.demoVideofile,
-              hours: course.hours,
-              language: course.language,
-              author: course.author,
-              price: course.price,
-              dprice: course.dprice,
-              isEnrolled: enrolledCourseIds.includes(course._id.toString()),
-            };
-          }
-          return null;
-        })
-      );
 
-      const filteredCoursesWithEnrollmentStatus =
-        coursesWithEnrollmentStatus.filter((course) => course !== null);
+      const coursesWithEnrollmentStatus = paginatedCourses.map((course) => ({
+        _id: course._id,
+        cname: course.cname,
+        totalVideo: course.totalVideo,
+        courseImage: course.courseImage,
+        previewVideofile: course.previewVideofile,
+        shortDescription: course.shortDescription,
+        hours: course.hours,
+        language: course.language,
+        author: course.author,
+        price: course.price,
+        dprice: course.dprice,
+        isEnrolled: enrolledCourseIds.includes(course._id.toString()),
+      }));
 
       return res.json({
-        courses: filteredCoursesWithEnrollmentStatus,
+        courses: coursesWithEnrollmentStatus,
         page: parseInt(page),
         pageCount,
         totalCourses,
       });
     }
 
-    const filteredCourses = await Promise.all(
-      courses.map(async (course) => {
-        const resources = await Video.find({ courseId: course._id });
-        if (resources.length > 0) {
-          return course;
-        }
-        return null;
-      })
-    );
-
-    const validCourses = filteredCourses.filter((course) => course !== null);
-
     res.json({
-      courses: validCourses,
+      courses: paginatedCourses,
       totalCourses,
     });
   } catch (error) {

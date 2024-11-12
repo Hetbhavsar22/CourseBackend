@@ -20,6 +20,17 @@ const enrollmentSchema = new Schema({
     type: Number,
     default: 0,
   },
+  CompletedCourseStatus: { 
+    type: Boolean,
+    default: false, 
+  },
+  active: {
+    type: Boolean,
+    default: true,
+  },
+  deactivatedAt: {
+    type: Date,
+  }
 });
 
 const Enrollment = mongoose.model("Enrollment", enrollmentSchema);
