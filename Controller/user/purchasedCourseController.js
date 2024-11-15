@@ -4,6 +4,7 @@ const Enrollment = require("../../Model/enrollmentModel");
 const User = require("../../Model/userModel");
 const userModel = require("../../Model/userModel");
 const VideoProgress = require("../../Model/VideoProgress");
+const CoursePurchase = require("../../Model/coursePurchaseModel");
 
 const getPurchasedCourseDetails = async (req, res) => {
   try {
@@ -44,6 +45,8 @@ const getPurchasedCourseDetails = async (req, res) => {
 
     const videoProgressData = await VideoProgress.find({ userId, courseId });
 
+    const coursePurchase = await CoursePurchase.findOne({ courseId, userId });
+
     const courseDetails = {
       courseId: course._id,
       cname: course.cname,
@@ -51,7 +54,9 @@ const getPurchasedCourseDetails = async (req, res) => {
       longDescription: course.longDescription,
       courseImage: course.courseImage,
       previewVideofile: course.previewVideofile,
+      learn: course.learn,
       hours: course.hours,
+      author: course.author,
       totalVideo: course.totalVideo,
       language: course.language,
       price: course.price,
@@ -60,6 +65,7 @@ const getPurchasedCourseDetails = async (req, res) => {
       percentage: course.percentage,
       startTime: course.startTime,
       endTime: course.endTime,
+      transactionDate: coursePurchase ? coursePurchase.transactionDate : null,
       chapters: course.chapters.map((chapter) => ({
         chapterName: chapter.name,
         resources: videos
@@ -72,6 +78,8 @@ const getPurchasedCourseDetails = async (req, res) => {
               videoId: video._id,
               title: video.title,
               description: video.description,
+              demo: video.demo,
+              demoVideofile: video.demoVideofile,
               thumbnail: video.thumbnail,
               videofile: video.videofile,
               videoURL: video.videoURL,

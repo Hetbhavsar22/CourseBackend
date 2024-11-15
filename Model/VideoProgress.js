@@ -22,6 +22,10 @@ const videoProgressSchema = new Schema(
       type: Number,
       required: true,
     },
+    progressCompleted: {
+      type: Boolean,
+      default: false,
+    },
     completed: {
       type: Boolean,
       default: false,

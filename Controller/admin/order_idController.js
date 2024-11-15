@@ -298,6 +298,9 @@ const verifyPayment = async (req, res) => {
       courseId,
       key_secret = "2BchtClGW9UJJd6HmHpa898i",
     } = req.body;
+
+    console.log("Customer Details:", customerDetails);
+
     if (!key_secret) {
       return res.json({
         status: 500,
@@ -354,7 +357,7 @@ const verifyPayment = async (req, res) => {
     let sgst = 0;
     let igst = 0;
 
-    const isFromGujarat = customerDetails.city === "Gujarat";
+    const isFromGujarat = customerDetails.state === "Gujarat";
     if (isFromGujarat) {
       cgst = totalGst / 2;
       sgst = totalGst / 2;
@@ -385,8 +388,10 @@ const verifyPayment = async (req, res) => {
       transactionId: razorpayPaymentId,
       customerName: customerDetails.name,
       customerEmail: customerDetails.email,
-      mobileNumber: user.phoneNumber,
+      customerMobile: user.phoneNumber,
       customerCity: customerDetails.city,
+      customerState: customerDetails.state,
+      customerCountry: customerDetails.country,
       amountWithoutGst,
       cgst,
       sgst,

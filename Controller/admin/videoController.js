@@ -65,10 +65,6 @@ const createVideo = (req, res) => {
       const videoFilePath = req.files && req.files.videofile ? req.files.videofile[0].path : null;
       console.log("Video file path: ", videoFilePath);
 
-      if (!videoFilePath) {
-        throw new Error("Video file path is null or undefined");
-      }
-
       console.log("Request Body: ", req.body);
 
       const course = await Course.findById(courseId);
@@ -1100,7 +1096,7 @@ const videotoggleButton = async (req, res) => {
 
 const updateVideoProgress = async (req, res) => {
   try {
-    const { userId, videoId, courseId, progress } = req.body;
+    const { userId, videoId, courseId, progress, percentage } = req.body;
 
     if (!userId || !videoId || !courseId || typeof progress !== "number") {
       return res.status(400).json({
@@ -1116,12 +1112,20 @@ const updateVideoProgress = async (req, res) => {
       });
     }
 
+    // if (progress == course.percentage) {
+    //   return res.status(200 ).json({
+    //     status: 200,
+    //     message: "Course completed successfully",
+    //   });
+    // }
+
     let videoProgress = await VideoProgress.findOne({ userId, videoId });
 
     if (videoProgress) {
       if (progress > videoProgress.progress) {
         videoProgress.progress = progress;
-        videoProgress.completed = progress === 100;
+        // videoProgress.progressCompleted = completed;
+        videoProgress.completed = progress >= percentage;
         videoProgress.updatedAt = Date.now();
         await videoProgress.save();
       } else {
@@ -1136,7 +1140,7 @@ const updateVideoProgress = async (req, res) => {
         videoId,
         courseId,
         progress,
-        completed: progress === 100,
+        completed: progress >= percentage,
       });
       await videoProgress.save();
     }

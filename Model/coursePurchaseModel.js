@@ -33,11 +33,17 @@ const coursePurchaseSchema = new Schema(
       type: String,
       match: [/.+\@.+\..+/, "Please enter a valid email address"],
     },
-    mobileNumber: {
+    customerMobile: {
       type: Number,
       match: [/^\d{10}$/, "Please enter a valid 10-digit mobile number"],
     },
     customerCity: {
+      type: String,
+    },
+    customerState: {
+      type: String,
+    },
+    customerCountry: {
       type: String,
     },
     currency: {

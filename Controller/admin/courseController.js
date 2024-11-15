@@ -153,6 +153,15 @@ const createCourse = async (req, res) => {
         endTime,
       } = req.body;
 
+      const adjustToUTC = (dateTime) => {
+        const date = new Date(dateTime);
+        const offset = 5.5 * 60 * 60 * 1000; // IST offset in milliseconds
+        return new Date(date.getTime() - offset);
+      };
+
+      const startTimeUTC = startTime ? adjustToUTC(startTime) : null;
+      const endTimeUTC = endTime ? adjustToUTC(endTime) : null;
+
       const courseImage =
         req.files && req.files.courseImage
           ? req.files.courseImage[0].path
@@ -203,8 +212,10 @@ const createCourse = async (req, res) => {
         courseGst,
         courseType,
         percentage: courseType === "percentage" ? percentage : null,
-        startTime: courseType === "timeIntervals" ? startTime : null,
-        endTime: courseType === "timeIntervals" ? endTime : null,
+        // startTime: courseType === "timeIntervals" ? startTime : null,
+        // endTime: courseType === "timeIntervals" ? endTime : null,
+        startTime: courseType === "timeIntervals" ? startTimeUTC : null,
+        endTime: courseType === "timeIntervals" ? endTimeUTC : null,
         createdBy: admin.name,
       });
 
@@ -523,7 +534,23 @@ const updateCourse = async (req, res) => {
       endTime,
     } = req.body;
 
-    console.log("courseId: ", courseId);
+    const adjustToUTC = (dateTime) => {
+      const date = new Date(dateTime);
+      console.log("date: ", date);
+      const offset = 5.5 * 60 * 60 * 1000; // IST offset in milliseconds
+      console.log("offset: ", offset);
+      return new Date(date.getTime() - offset);
+    };
+
+    // const startTimeUTC = startTime ? adjustToUTC(startTime) : null;
+    // const endTimeUTC = endTime ? adjustToUTC(endTime) : null;
+    console.log("startTime: ", startTime);
+    console.log("endTime: ", endTime);
+    const startTimeUTC = startTime ? startTime : null;
+    const endTimeUTC = endTime ? endTime : null;
+
+
+    // console.log("courseId: ", courseId);
     if (!courseId) {
       return res.json({
         status: 400,
@@ -589,8 +616,10 @@ const updateCourse = async (req, res) => {
         course.startTime = null;
         course.endTime = null;
       } else if (courseType === "timeIntervals") {
-        course.startTime = startTime || course.startTime;
-        course.endTime = endTime || course.endTime;
+        // course.startTime = startTime || course.startTime;
+        // course.endTime = endTime || course.endTime;
+        course.startTime = startTimeUTC || course.startTime;
+        course.endTime = endTimeUTC || course.endTime;
         course.percentage = null;
       }
 
