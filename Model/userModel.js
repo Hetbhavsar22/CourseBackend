@@ -45,6 +45,11 @@ const UserSchema = new Schema(
       type: String,
     },
 
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     active: {
       type: Boolean,
       default: true,

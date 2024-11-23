@@ -6,7 +6,11 @@ const CoursePurchase = require("../../Model/coursePurchaseModel");
 const Enrollment = require("../../Model/enrollmentModel");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const { generateInvoicePDF } = require("../user/invoiceController");
+const nodemailer = require('nodemailer');
 require("dotenv").config();
+const path = require("path");
+const ejs = require("ejs");
 
 const instance = new Razorpay({
   key_id: "rzp_test_ijIfGspQLSfEhH",
@@ -286,7 +290,6 @@ const razorpayInstance = new Razorpay({
   key_secret: "2BchtClGW9UJJd6HmHpa898i",
 });
 
-const nodemailer = require("nodemailer");
 
 const verifyPayment = async (req, res) => {
   try {
@@ -315,6 +318,13 @@ const verifyPayment = async (req, res) => {
     const generatedSignature = hmac.digest("hex");
 
     if (generatedSignature !== razorpaySignature) {
+      await new CoursePurchase({
+        courseId,
+        userId: customerDetails.userId,
+        transactionId: razorpayPaymentId,
+        status: "Failure",
+      }).save();
+
       return res.json({
         status: 400,
         success: false,
@@ -342,28 +352,23 @@ const verifyPayment = async (req, res) => {
       });
       await user.save();
     } else {
-      user.name = customerDetails.name;
-      user.email = customerDetails.email;
-      user.city = customerDetails.city;
+      Object.assign(user, {
+        name: customerDetails.name,
+        email: customerDetails.email,
+        city: customerDetails.city,
+      });
       await user.save();
     }
 
     const totalPaidAmount = customerDetails.amount;
     const gstPercentage = course.courseGst || 0;
-    const totalGst = (totalPaidAmount * gstPercentage) / 100;
-    const amountWithoutGst = totalPaidAmount - totalGst;
-
-    let cgst = 0;
-    let sgst = 0;
-    let igst = 0;
+    const amountWithoutGst = parseFloat(((totalPaidAmount * 100) / (100 + gstPercentage)).toFixed(2));
+    const totalGst = parseFloat((totalPaidAmount - amountWithoutGst).toFixed(2));
 
     const isFromGujarat = customerDetails.state === "Gujarat";
-    if (isFromGujarat) {
-      cgst = totalGst / 2;
-      sgst = totalGst / 2;
-    } else {
-      igst = totalGst;
-    }
+    const cgst = isFromGujarat ? totalGst / 2 : 0;
+    const sgst = isFromGujarat ? totalGst / 2 : 0;
+    const igst = !isFromGujarat ? totalGst : 0;
 
     const currentDate = new Date();
     const year = currentDate.getFullYear();
@@ -392,11 +397,12 @@ const verifyPayment = async (req, res) => {
       customerCity: customerDetails.city,
       customerState: customerDetails.state,
       customerCountry: customerDetails.country,
+      status: "Success",
       amountWithoutGst,
       cgst,
       sgst,
       igst,
-      totalGst: isFromGujarat ? cgst + sgst : igst,
+      totalGst: cgst + sgst + igst,
       totalPaidAmount,
       paymentMode: customerDetails.paymentMode,
       invoiceNumber,
@@ -412,17 +418,63 @@ const verifyPayment = async (req, res) => {
     });
     await enrollment.save();
 
+    // await generateInvoicePDF(customerDetails, igst, cgst, sgst, course, user, amountWithoutGst, invoiceNumber, totalPaidAmount, totalGst, razorpayPaymentId);
+    // const fs = require("fs");
+
+    const formatDate = (timestamp) => {
+      const date = new Date(timestamp);
+      const options = { year: 'numeric', month: 'long', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+      return date.toLocaleDateString('en-US', options).replace(',', '');
+  };
+  
+    console.log("users", user);
+    const invoice = {
+      customerDetails: {
+        name: customerDetails.name,
+        email: customerDetails.email,
+        mobile: customerDetails.mobile,
+        state: customerDetails.state,
+      },
+      course: {
+        cname: course.cname,
+        courseGst: course.courseGst,
+      },
+      coursePurchase: {
+        transactionDate: coursePurchase.transactionDate,
+        transactionId: razorpayPaymentId,
+        amountWithoutGst: coursePurchase.amountWithoutGst,
+        totalGst: coursePurchase.totalGst,
+        invoiceNumber: coursePurchase.invoiceNumber,
+        totalPaidAmount: coursePurchase.totalPaidAmount,
+        igst: coursePurchase.igst,
+        cgst: coursePurchase.cgst,
+        sgst: coursePurchase.sgst,
+      },
+      COMPANY_NAME: process.env.COMPANY_NAME,
+      COMPANY_ADDRESS: process.env.COMPANY_ADDRESS,
+      COMPANY_PAN_NUMBER: process.env.COMPANY_PAN_NUMBER,
+      COMPANY_STATE: process.env.COMPANY_STATE,
+      COMPANY_HSN_NUMBER: process.env.COMPANY_HSN_NUMBER,
+      COMPANY_CIN_NUMBER: process.env.COMPANY_CIN_NUMBER,
+      COMPANY_GST_NUMBER: process.env.COMPANY_GST_NUMBER,
+      COMPANY_EMAIL: process.env.COMPANY_EMAIL,
+      COMPANY_HELPLINE: process.env.COMPANY_HELPLINE,
+      formatDate
+    };
+
+    const pdfPath = await generateInvoicePDF(invoice);
+
     const transporter = nodemailer.createTransport({
       service: "Gmail",
       auth: {
-        user: "erhetbhavsar@gmail.com",
-        pass: "rmpeeebgdehsdfxj",
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     });
 
     const mailOptions = {
-      from: "erhetbhavsar@gmail.com",
-      to: customerDetails.email,
+      from: process.env.EMAIL_USER,
+      to: [customerDetails.email, process.env.ADMIN_EMAIL],
       subject: `🎉 Congratulations! Your Enrollment is Confirmed! Welcome to ${course.cname}!`,
       text: `Dear ${customerDetails.name},
     
@@ -470,9 +522,26 @@ const verifyPayment = async (req, res) => {
     We can’t wait to see what you’ll achieve with the knowledge you’ll gain from "${course.cname}". Happy learning!
     
     `,
+    attachments: [
+      {
+        filename: `invoice_${invoice.coursePurchase.invoiceNumber}.pdf`,
+          path: pdfPath,
+      },
+    ],
     };
 
-    await transporter.sendMail(mailOptions);
+    // await transporter.sendMail(mailOptions);
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        return res.status(500).send('Error sending email.');
+      } else {
+        console.log('Email sent:', info.response);
+        // Optionally delete the PDF after sending
+        fs.unlinkSync(pdfPath);
+        return res.status(200).send('Payment verified and email sent.');
+      }
+    });
 
     res.json({
       status: 200,

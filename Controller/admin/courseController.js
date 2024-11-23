@@ -38,7 +38,7 @@ const createCourse = async (req, res) => {
           .isLength({ min: 1, max: 255 })
           .withMessage("Course name must be between 1 and 255 characters long")
           .custom((value) => {
-            const specialCharRegex = /[^a-zA-Z0-9\s]/;
+            const specialCharRegex = /[^a-zA-Z0-9\s\-\/]/;
             if (specialCharRegex.test(value)) {
               throw new Error(
                 "Course name should not contain special characters."
@@ -159,8 +159,8 @@ const createCourse = async (req, res) => {
         return new Date(date.getTime() - offset);
       };
 
-      const startTimeUTC = startTime ? adjustToUTC(startTime) : null;
-      const endTimeUTC = endTime ? adjustToUTC(endTime) : null;
+      const startTimeUTC = startTime ? startTime : null;
+      const endTimeUTC = endTime ? endTime : null;
 
       const courseImage =
         req.files && req.files.courseImage
@@ -218,6 +218,19 @@ const createCourse = async (req, res) => {
         endTime: courseType === "timeIntervals" ? endTimeUTC : null,
         createdBy: admin.name,
       });
+
+      if (courseType === "timeIntervals") {
+        course.percentage = 80;
+      }
+      if (courseType === "percentage") {
+        course.startTime = null;
+        course.endTime = null;
+      }
+      if (courseType === "allopen") {
+        course.percentage = 80;
+        course.startTime = null;
+        course.endTime = null;
+      }
 
       const savedCourse = await course.save();
       return res.json({
@@ -429,7 +442,7 @@ const updateCourse = async (req, res) => {
         .isLength({ min: 1, max: 255 })
         .withMessage("Course name must be between 1 and 255 characters long")
         .custom((value) => {
-          const specialCharRegex = /[^a-zA-Z0-9\s]/;
+          const specialCharRegex = /[^a-zA-Z0-9\s\-\/]/;
           if (specialCharRegex.test(value)) {
             throw new Error(
               "Course name should not contain special characters."
@@ -621,6 +634,19 @@ const updateCourse = async (req, res) => {
         course.startTime = startTimeUTC || course.startTime;
         course.endTime = endTimeUTC || course.endTime;
         course.percentage = null;
+      }
+
+      if (courseType === "timeIntervals") {
+        course.percentage = 0;
+      }
+      if (courseType === "percentage") {
+        course.startTime = null;
+        course.endTime = null;
+      }
+      if (courseType === "allopen") {
+        course.percentage = 0;
+        course.startTime = null;
+        course.endTime = null;
       }
 
       const updatedCourse = await course.save();
@@ -1075,16 +1101,11 @@ const generateCertificate = async (req, res) => {
 
 const getRecommendedCourses = async (req, res) => {
   try {
-    const { purchaseId } = req.params;
-    const purchase = await Purchase.findById(purchaseId).populate("courseId");
+    const { courseId } = req.params;
+    const purchasedCourse = await Course.findById(courseId);
 
-    if (!purchase) {
-      return res.status(404).json({ message: "Purchase not found" });
-    }
-
-    const purchasedCourse = purchase.courseId;
     if (!purchasedCourse) {
-      return res.status(404).json({ message: "Purchased course not found" });
+      return res.status(404).json({ message: "Course not found" });
     }
 
     console.log("Purchased Course Details:", purchasedCourse);

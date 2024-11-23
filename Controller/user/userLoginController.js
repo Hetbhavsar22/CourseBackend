@@ -19,12 +19,10 @@ function generateOtpVerificationToken() {
 const generateToken = (userDetail) => {
   const payload = {
     id: userDetail._id,
-    email: userDetail.email,
-    profile_image: userDetail.profile_image,
+    phoneNumber: userDetail.phoneNumber,
   };
 
   const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: "24h" });
-
   return token;
 };
 
@@ -74,15 +72,17 @@ const login = async (req, res) => {
 
     if (
       currentDate > userDetail.login_expire_time ||
-      browserFingerPrint !== userDetail.last_Browser_finger_print
+      browserFingerPrint !== userDetail.last_Browser_finger_print ||
+      userDetail.isVerified === false
     ) {
       userDetail.otp = generateOTP();
       userDetail.otp_expire_time = new Date(currentDate.getTime() + 5 * 60000);
-      userDetail.verification_token = await generateOtpVerificationToken();
+      userDetail.verification_token =  generateOtpVerificationToken();
       userDetail.login_expire_time = new Date(
         currentDate.getTime() + 24 * 60 * 60 * 1000
       );
       userDetail.last_Browser_finger_print = browserFingerPrint;
+      userDetail.isVerified = false;
       // Send OTP to user via SMS
       /*var otpParams = {
         phoneNumber: userDetail.phoneNumber,
@@ -111,7 +111,9 @@ const login = async (req, res) => {
         },
       });
     } else {
+      console.log('userDetailLogin: ', userDetail);
       const token = generateToken(userDetail);
+      console.log("tokenLogin: ", token);
       userDetail.token = token;
       userDetail.login_expire_time = new Date(
         currentDate.getTime() + 24 * 60 * 60 * 1000
@@ -185,9 +187,9 @@ const verifyOTP = async (req, res) => {
         message: "OTP has expired",
       });
     }
-
+    console.log("userDetailOtp: ", userDetail);
     const token = generateToken(userDetail);
-
+    console.log("Otptoken: ", token);
     userDetail.token = token;
     userDetail.otp = null;
     userDetail.verification_token = null;
@@ -197,6 +199,7 @@ const verifyOTP = async (req, res) => {
     userDetail.login_expire_time = new Date(
       currentDate.getTime() + 24 * 60 * 60 * 1000
     );
+    userDetail.isVerified = true;
 
     await userDetail.save();
 
@@ -266,8 +269,41 @@ const getAllUser = async (req, res) => {
   }
 };
 
+const getUserById = async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(" ")[1];
+    const decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+    console.log('decodedToken: ', decodedToken);
+    const userId = decodedToken.id;
+
+    const userDetail = await userModel.findById(userId);
+    if (!userDetail) {
+      return res.json({
+        status: 404,
+        message: "User not found",
+      });
+    }
+
+    res.json({
+      status: 200,
+      data: {
+        id: userDetail._id,
+        phoneNumber: userDetail.phoneNumber,
+        token: token,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user details:", error);
+    res.json({
+      status: 500,
+      message: "An error occurred while fetching user details.",
+    });
+  }
+};
+
 module.exports = {
   login,
   verifyOTP,
   getAllUser,
+  getUserById,
 };

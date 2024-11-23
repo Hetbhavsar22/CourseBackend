@@ -46,6 +46,10 @@ const coursePurchaseSchema = new Schema(
     customerCountry: {
       type: String,
     },
+    status: {
+      type: String,
+      default: "success",
+    },
     currency: {
       type: String,
       default: "INR",

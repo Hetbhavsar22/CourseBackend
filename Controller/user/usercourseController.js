@@ -3,6 +3,7 @@ const Course = require("../../Model/courseModel");
 const Video = require("../../Model/videoModel");
 const userModel = require("../../Model/userModel");
 const adminModel = require("../../Model/adminModel");
+const VideoProgress = require("../../Model/VideoProgress");
 const Enrollment = require("../../Model/enrollmentModel");
 const Order = require("../../Model/order_IdModel");
 const Purchase = require("../../Model/coursePurchaseModel");
@@ -134,20 +135,50 @@ const getAllCourses = async (req, res) => {
         enrollment.courseId.toString()
       );
 
-      const coursesWithEnrollmentStatus = paginatedCourses.map((course) => ({
-        _id: course._id,
-        cname: course.cname,
-        totalVideo: course.totalVideo,
-        courseImage: course.courseImage,
-        previewVideofile: course.previewVideofile,
-        shortDescription: course.shortDescription,
-        hours: course.hours,
-        language: course.language,
-        author: course.author,
-        price: course.price,
-        dprice: course.dprice,
-        isEnrolled: enrolledCourseIds.includes(course._id.toString()),
-      }));
+      // const coursesWithEnrollmentStatus = paginatedCourses.map((course) => ({
+      //   _id: course._id,
+      //   cname: course.cname,
+      //   totalVideo: course.totalVideo,
+      //   courseImage: course.courseImage,
+      //   previewVideofile: course.previewVideofile,
+      //   shortDescription: course.shortDescription,
+      //   hours: course.hours,
+      //   language: course.language,
+      //   author: course.author,
+      //   price: course.price,
+      //   dprice: course.dprice,
+      //   isEnrolled: enrolledCourseIds.includes(course._id.toString()),
+      // }));
+
+      const coursesWithEnrollmentStatus = await Promise.all(
+        paginatedCourses.map(async (course) => {
+          const totalResources = await Video.countDocuments({ courseId: course._id }); 
+          // Fetch user's progress for the course
+          const userProgress = await VideoProgress.find({ userId, courseId: course._id });
+          // Count the number of completed resources
+          const completedResources = userProgress.filter(vp => vp.completed).length;
+          // Calculate the completion percentage
+          const completionPercentage = (completedResources / totalResources) * 100;
+          // Determine if the course is completed based on the required percentage
+          const hasCompleted = completionPercentage >= course.percentage;
+
+          return {
+            _id: course._id,
+            cname: course.cname,
+            totalVideo: course.totalVideo,
+            courseImage: course.courseImage,
+            previewVideofile: course.previewVideofile,
+            shortDescription: course.shortDescription,
+            hours: course.hours,
+            language: course.language,
+            author: course.author,
+            price: course.price,
+            dprice: course.dprice,
+            isEnrolled: enrolledCourseIds.includes(course._id.toString()),
+            hasCompleted: hasCompleted,
+          };
+        })
+      );
 
       return res.json({
         courses: coursesWithEnrollmentStatus,

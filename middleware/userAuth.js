@@ -7,7 +7,7 @@ const authenticate = async (req, res, next) => {
     if (!token) {
       return res
         .status(401)
-        .json({ message: "No token provided. Please authenticate." });
+        .json({ status: 401, message: "No token provided. Please authenticate." });
     }
 
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
@@ -16,7 +16,7 @@ const authenticate = async (req, res, next) => {
     if (!user) {
       return res
         .status(401)
-        .json({ message: "User not found. Please authenticate." });
+        .json({ status: 401, message: "User not found. Please authenticate." });
     }
 
     req.token = token;
@@ -25,7 +25,7 @@ const authenticate = async (req, res, next) => {
   } catch (error) {
     res
       .status(401)
-      .json({ message: "Please authenticate.", error: error.message });
+      .json({ status: 401, message: "Please authenticate.", error: error.message });
   }
 };
 
